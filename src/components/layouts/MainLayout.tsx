@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Link as LinkIcon, ShieldCheck, Settings, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, FileText, Link as LinkIcon, Settings, LogOut, Menu, X, Users } from 'lucide-react';
 import { useState } from 'react';
 
 const navigation = [
@@ -7,7 +7,7 @@ const navigation = [
   { name: 'Contratos', href: '/contracts', icon: FileText },
   { name: 'Blockchain', href: '/blockchain', icon: LinkIcon },
   { name: 'Auditoría', href: '/audit', icon: FileText },
-  { name: 'Usuarios', href: '/users', icon: ShieldCheck },
+  { name: 'Usuarios', href: '/users', icon: Users },
   { name: 'Configuración', href: '/settings', icon: Settings },
 ];
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ShieldCheck, Mail, Lock } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 

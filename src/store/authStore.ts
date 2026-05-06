@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 export interface Profile {
   id: string;
   company_id: string | null;
-  role: 'global_admin' | 'company_admin' | 'employee' | 'recipient';
+  role: 'global_admin' | 'company_admin' | 'employee' | 'recipient' | 'pending';
   national_id: string | null;
   full_name: string;
   created_at: string;

@@ -18,5 +18,28 @@ export function ProtectedRoute() {
     return <Navigate to="/onboarding" replace />;
   }
 
+  if (profile.role === 'pending') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-amber-100">
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-amber-100 mb-6">
+            <span className="text-2xl">⏳</span>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Cuenta Pendiente</h2>
+          <p className="text-slate-600 mb-8">
+            Tu cuenta empresarial ha sido registrada y está esperando ser aprobada por un administrador global. 
+            Te notificaremos cuando tengas acceso a la plataforma.
+          </p>
+          <button 
+            onClick={() => useAuthStore.getState().signOut()}
+            className="w-full bg-slate-900 text-white font-semibold py-3 rounded-lg hover:bg-slate-800 transition-colors"
+          >
+            Cerrar Sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return <Outlet />;
 }

@@ -175,7 +175,10 @@ export function RegisterCompany() {
               </div>
             )}
 
-            <div className="pt-6">
+            <div className="pt-2">
+              <p className="text-xs text-slate-500 mb-4 text-center">
+                Al crear una cuenta, aceptas nuestros <Link to="/terms" className="font-semibold text-primary-600 hover:text-primary-800 transition-colors">Términos y Condiciones</Link> y Política de Privacidad.
+              </p>
               <button
                 type="submit"
                 disabled={loading}

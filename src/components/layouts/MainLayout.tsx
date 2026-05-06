@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Contratos', href: '/contracts', icon: FileText },
-  { name: 'Blockchain', href: '/blockchain', icon: LinkIcon },
-  { name: 'Auditoría', href: '/audit', icon: FileText },
-  { name: 'Usuarios', href: '/users', icon: Users },
-  { name: 'Configuración', href: '/settings', icon: Settings },
+  { name: 'Dashboard', href: '/app', icon: LayoutDashboard },
+  { name: 'Contratos', href: '/app/contracts', icon: FileText },
+  { name: 'Blockchain', href: '/app/blockchain', icon: LinkIcon },
+  { name: 'Auditoría', href: '/app/audit', icon: FileText },
+  { name: 'Usuarios', href: '/app/users', icon: Users },
+  { name: 'Configuración', href: '/app/settings', icon: Settings },
 ];
 
 export function MainLayout() {
@@ -36,7 +36,7 @@ export function MainLayout() {
         <nav className="flex flex-1 flex-col px-4 py-6">
           <ul role="list" className="flex flex-1 flex-col gap-y-2">
             {navigation.map((item) => {
-              const isActive = location.pathname === item.href || (item.href !== '/' && location.pathname.startsWith(item.href));
+              const isActive = location.pathname === item.href || (item.href !== '/app' && location.pathname.startsWith(item.href));
               return (
                 <li key={item.name}>
                   <Link
@@ -85,7 +85,7 @@ export function MainLayout() {
 
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-between items-center">
             <h1 className="text-xl font-semibold text-primary-800 truncate">
-               {navigation.find(n => location.pathname === n.href || (n.href !== '/' && location.pathname.startsWith(n.href)))?.name || 'Contractum'}
+               {navigation.find(n => location.pathname === n.href || (n.href !== '/app' && location.pathname.startsWith(n.href)))?.name || 'Contractum'}
             </h1>
           </div>
         </div>

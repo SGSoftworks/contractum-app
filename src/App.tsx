@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { MainLayout } from './components/layouts/MainLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { Landing } from './pages/Landing';
+import { Terms } from './pages/Terms';
 import { Login } from './pages/Login';
 import { RegisterCompany } from './pages/RegisterCompany';
 import { Onboarding } from './pages/Onboarding';
@@ -25,12 +27,16 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Rutas Públicas */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register-company" element={<RegisterCompany />} />
         <Route path="/onboarding" element={<Onboarding />} />
         
-        <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<MainLayout />}>
+        {/* Rutas Protegidas de la Aplicación */}
+        <Route path="/app" element={<ProtectedRoute />}>
+          <Route element={<MainLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="contracts" element={<ContractsList />} />
             <Route path="contracts/new" element={<CreateContract />} />
@@ -42,6 +48,7 @@ function App() {
           </Route>
         </Route>
         
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

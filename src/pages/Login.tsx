@@ -16,7 +16,7 @@ export function Login() {
   const { user } = useAuthStore();
 
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -54,9 +54,7 @@ export function Login() {
       
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center mb-6">
-          <div className="bg-white p-4 rounded-full shadow-lg border border-slate-100">
-            <img src="/logoBasico.png" alt="Contractum Logo" className="h-16 w-auto object-contain drop-shadow-sm" />
-          </div>
+          <img src="/logoBasico.png" alt="Contractum Logo" className="h-20 w-auto object-contain drop-shadow-md" />
         </div>
         <h2 className="mt-2 text-center text-3xl font-bold tracking-tight text-white sm:text-slate-900">
           {isSignUp ? 'Crear Cuenta' : 'Bienvenido'}

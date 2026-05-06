@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { ShieldCheck, Link as LinkIcon, FileText, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Link as LinkIcon, FileText, ArrowRight } from 'lucide-react';
 
 export function Landing() {
   const { user } = useAuthStore();

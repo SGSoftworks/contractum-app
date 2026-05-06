@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Save, Plus, Trash2, Shield, Calendar, MapPin } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
 
 interface Signer {
   id: string;
@@ -49,13 +51,83 @@ export function CreateContract() {
     setSigners(signers.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
+  const { profile } = useAuthStore();
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!profile || !profile.company_id) {
+      alert("No puedes crear contratos sin pertenecer a una empresa.");
+      return;
+    }
+    
+    if (!formData.title) {
+      alert("El título es obligatorio.");
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const htmlContent = editor?.getHTML() || '';
+
+      // 1. Insertar Contrato
+      const { data: contractData, error: contractError } = await supabase
+        .from('contracts')
+        .insert({
+          company_id: profile.company_id,
+          title: formData.title,
+          content: htmlContent,
+          jurisdiction: formData.jurisdiction,
+          confidentiality_level: formData.confidentiality,
+          validity_period: formData.validity,
+          status: 'pending_signature',
+          created_by: profile.id
+        })
+        .select()
+        .single();
+
+      if (contractError) throw contractError;
+
+      // 2. Insertar Firmantes
+      const signersToInsert = signers.map(s => ({
+        contract_id: contractData.id,
+        signer_name: s.name,
+        signer_email: s.email,
+        signer_national_id: s.nationalId,
+        role: s.role,
+        status: 'pending'
+      }));
+
+      const { error: signersError } = await supabase
+        .from('contract_signers')
+        .insert(signersToInsert);
+
+      if (signersError) throw signersError;
+
+      // 3. Insertar Log Inicial (GENESIS)
+      // En una implementación robusta, el hash criptográfico debe calcularse con una función SHA-256
+      // Para la creación, usamos GENESIS como previous_hash.
+      const initialHash = `GENESIS_${contractData.id.replace(/-/g, '').substring(0, 16)}`;
+      
+      const { error: logError } = await supabase
+        .from('contract_logs')
+        .insert({
+          contract_id: contractData.id,
+          user_id: profile.id,
+          action: 'Creación de Contrato',
+          details: { message: `Creado por ${profile.full_name}`, signers_count: signers.length },
+          previous_hash: 'GENESIS',
+          hash: initialHash
+        });
+
+      if (logError) throw logError;
+
       navigate('/contracts');
-    }, 1000);
+    } catch (err: any) {
+      console.error(err);
+      alert('Error al guardar el contrato: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

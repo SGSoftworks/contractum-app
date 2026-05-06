@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, Link as LinkIcon, Settings, LogOut, Menu, X, Users } from 'lucide-react';
 import { useState } from 'react';
+import { useAuthStore } from '@/store/authStore';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -14,6 +15,7 @@ const navigation = [
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { profile, signOut } = useAuthStore();
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -58,13 +60,13 @@ export function MainLayout() {
           <div className="mt-auto pt-6 border-t border-primary-800">
             <div className="flex items-center gap-x-4 px-3 py-3 rounded-xl hover:bg-primary-800/50 transition-colors cursor-pointer">
               <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-secondary-500 to-secondary-400 flex items-center justify-center text-primary-900 font-bold shadow-sm">
-                UD
+                {profile?.full_name ? profile.full_name.substring(0, 2).toUpperCase() : 'U'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">UsuarioDemo</p>
-                <p className="text-xs text-primary-300 truncate">Empresa Demo S.A.</p>
+                <p className="text-sm font-semibold text-white truncate">{profile?.full_name || 'Usuario'}</p>
+                <p className="text-xs text-primary-300 truncate capitalize">{profile?.role?.replace('_', ' ') || 'Sin Rol'}</p>
               </div>
-              <button className="text-primary-400 hover:text-red-400 transition-colors p-1 rounded-md hover:bg-primary-800">
+              <button onClick={() => signOut()} className="text-primary-400 hover:text-red-400 transition-colors p-1 rounded-md hover:bg-primary-800">
                 <LogOut className="h-5 w-5" />
               </button>
             </div>

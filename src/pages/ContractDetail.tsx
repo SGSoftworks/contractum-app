@@ -1,22 +1,30 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, ShieldCheck, PenTool, X, Download, UserCircle } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
 
-// MOCK: Simulamos que el usuario logueado actualmente es EmpleadoDemo
-const CURRENT_USER = {
-  id: 'user-2',
-  nationalId: '20000000',
-  name: 'EmpleadoDemo',
-  email: 'empleado@correo.com'
-};
+async function generateHash(message: string) {
+  const msgUint8 = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export function ContractDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { profile } = useAuthStore();
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [contract, setContract] = useState<any>(null);
+  const [signers, setSigners] = useState<any[]>([]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [step, setStep] = useState<'confirm' | 'sign'>('confirm');
@@ -24,26 +32,49 @@ export function ContractDetail() {
   const sigCanvas = useRef<SignatureCanvas>(null);
   const documentRef = useRef<HTMLDivElement>(null);
 
-  // MOCK DATA: Estructura actualizada con múltiples firmantes
-  const [contract, setContract] = useState({
-    id,
-    title: 'Contrato de Prestación de Servicios',
-    date: new Date('2026-05-01'),
-    jurisdiction: 'Colombia',
-    confidentiality: 'Estándar',
-    validity: '1 Año desde la firma',
-    content: '<h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Términos y Condiciones</h2><p>1. El proveedor se compromete a entregar los servicios descritos en los anexos correspondientes, asegurando la calidad y los plazos pactados.</p><p><br/>2. El pago se realizará a los 30 días de emitida la factura electrónica debidamente validada.</p><p><br/>3. Ambas partes acuerdan que este documento electrónico firmado mediante la plataforma Contractum tiene total validez legal y es vinculante.</p>',
-    signers: [
-      { id: '1', name: 'Usuario Demo', email: 'juan@correo.com', nationalId: '10000000', role: 'Empleador', status: 'signed', signedAt: new Date('2026-05-01T10:30:00') },
-      { id: '2', name: 'EmpleadoDemo', email: 'empleado@correo.com', nationalId: '20000000', role: 'Cliente', status: 'pending', signedAt: null }
-    ]
-  });
+  const fetchContractData = async () => {
+    try {
+      setLoading(true);
+      const { data: contractData, error: contractError } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (contractError) throw contractError;
+      
+      const { data: signersData, error: signersError } = await supabase
+        .from('contract_signers')
+        .select('*')
+        .eq('contract_id', id)
+        .order('role', { ascending: true });
+        
+      if (signersError) throw signersError;
+      
+      setContract(contractData);
+      setSigners(signersData || []);
+    } catch (err: any) {
+      console.error(err);
+      setError('No se pudo cargar el contrato.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const isFullySigned = contract.signers.every(s => s.status === 'signed');
-  const contractStatus = isFullySigned ? 'signed' : 'pending_signature';
+  useEffect(() => {
+    if (id) {
+      fetchContractData();
+    }
+  }, [id]);
+
+  if (loading) return <div className="text-center p-12">Cargando documento...</div>;
+  if (error || !contract) return <div className="text-center p-12 text-red-500">{error || 'Contrato no encontrado'}</div>;
+
+  const isFullySigned = signers.every(s => s.status === 'signed');
+  const contractStatus = contract.status === 'signed' ? 'signed' : (isFullySigned ? 'signed' : 'pending_signature');
 
   // Lógica inteligente: Buscar si el usuario actual debe firmar este contrato
-  const currentUserSigner = contract.signers.find(s => s.nationalId === CURRENT_USER.nationalId);
+  const currentUserSigner = profile ? signers.find(s => s.signer_national_id === profile.national_id) : null;
   const canSign = currentUserSigner && currentUserSigner.status === 'pending';
 
   const handleOpenSignatureFlow = () => {
@@ -55,21 +86,66 @@ export function ContractDetail() {
     setStep('sign');
   };
 
-  const handleSign = () => {
+  const handleSign = async () => {
     if (sigCanvas.current?.isEmpty()) {
       alert('Por favor, dibuje su firma antes de confirmar.');
       return;
     }
     
-    // Simulate updating the signer status
-    const updatedSigners = contract.signers.map(s => 
-      s.nationalId === CURRENT_USER.nationalId 
-        ? { ...s, status: 'signed', signedAt: new Date() } 
-        : s
-    );
-    
-    setContract({ ...contract, signers: updatedSigners as any });
-    setIsModalOpen(false);
+    try {
+      const signatureData = sigCanvas.current?.toDataURL('image/png');
+      
+      // Update signer
+      const { error: signerError } = await supabase
+        .from('contract_signers')
+        .update({ status: 'signed', signature_data: signatureData, signed_at: new Date().toISOString() })
+        .eq('id', currentUserSigner.id);
+        
+      if (signerError) throw signerError;
+
+      // Generar Log y Hash
+      // Obtener el último hash de este contrato
+      const { data: lastLogs } = await supabase
+        .from('contract_logs')
+        .select('hash')
+        .eq('contract_id', id)
+        .order('action_timestamp', { ascending: false })
+        .limit(1);
+        
+      const previousHash = lastLogs && lastLogs.length > 0 ? lastLogs[0].hash : 'GENESIS';
+      const timestamp = new Date().toISOString();
+      const action = `Firma de ${currentUserSigner.role}`;
+      const messageToHash = `${previousHash}${id}${action}${timestamp}`;
+      const newHash = await generateHash(messageToHash);
+
+      const { error: logError } = await supabase
+        .from('contract_logs')
+        .insert({
+          contract_id: contract.id,
+          user_id: profile!.id,
+          action: action,
+          details: { signer_name: profile!.full_name, role: currentUserSigner.role },
+          previous_hash: previousHash,
+          hash: newHash
+        });
+
+      if (logError) throw logError;
+
+      setIsModalOpen(false);
+      
+      // Check if this was the last signature
+      const remainingSigners = signers.filter(s => s.status === 'pending' && s.id !== currentUserSigner.id);
+      if (remainingSigners.length === 0) {
+        // Automatically set contract to signed if everyone has signed
+        await supabase.from('contracts').update({ status: 'signed' }).eq('id', id);
+      }
+
+      await fetchContractData();
+
+    } catch (err: any) {
+      console.error(err);
+      alert('Error al firmar: ' + err.message);
+    }
   };
 
   const handleClear = () => {
@@ -86,7 +162,29 @@ export function ContractDetail() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Contrato_Contractum_${contract.id}.pdf`);
+      
+      // Download local copy
+      pdf.save(`Contrato_Contractum_${contract.id.substring(0,8)}.pdf`);
+      
+      // Subir al Bucket de Supabase si no se ha subido aún
+      if (!contract.pdf_url) {
+        const pdfBlob = pdf.output('blob');
+        const fileName = `${contract.id}.pdf`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('contracts')
+          .upload(fileName, pdfBlob, {
+            contentType: 'application/pdf',
+            upsert: true
+          });
+          
+        if (!uploadError) {
+          const { data } = supabase.storage.from('contracts').getPublicUrl(fileName);
+          await supabase.from('contracts').update({ pdf_url: data.publicUrl }).eq('id', contract.id);
+        } else {
+          console.error("Error subiendo PDF al bucket:", uploadError);
+        }
+      }
     } catch (error) {
       console.error('Error generando PDF:', error);
       alert('Hubo un error al generar el documento.');
@@ -105,7 +203,7 @@ export function ContractDetail() {
           </button>
           <div>
             <h2 className="text-2xl font-bold text-slate-800">{contract.title}</h2>
-            <p className="text-sm text-slate-500 mt-1">ID: #{contract.id} • Creado el {format(contract.date, 'dd/MM/yyyy')}</p>
+            <p className="text-sm text-slate-500 mt-1">ID: #{contract.id.substring(0,8)} • Creado el {format(new Date(contract.created_at), 'dd/MM/yyyy')}</p>
           </div>
         </div>
         <div>
@@ -131,11 +229,11 @@ export function ContractDetail() {
              {/* Metadatos visuales en el PDF */}
              <div className="mb-8 pb-4 border-b border-slate-100 flex justify-between items-start text-xs text-slate-500">
                 <div>
-                  <p><span className="font-semibold text-slate-700">Jurisdicción:</span> {contract.jurisdiction}</p>
-                  <p><span className="font-semibold text-slate-700">Confidencialidad:</span> {contract.confidentiality}</p>
+                  <p><span className="font-semibold text-slate-700">Jurisdicción:</span> {contract.jurisdiction || 'N/A'}</p>
+                  <p><span className="font-semibold text-slate-700">Confidencialidad:</span> {contract.confidentiality_level || 'N/A'}</p>
                 </div>
                 <div className="text-right">
-                  <p><span className="font-semibold text-slate-700">Vigencia:</span> {contract.validity}</p>
+                  <p><span className="font-semibold text-slate-700">Vigencia:</span> {contract.validity_period || 'N/A'}</p>
                 </div>
              </div>
 
@@ -146,21 +244,23 @@ export function ContractDetail() {
              
              {/* Firmas incrustadas */}
              <div className="mt-16 pt-8 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-8">
-                {contract.signers.map(signer => (
-                  <div key={signer.id} className="flex flex-col items-center justify-center opacity-90 p-4 border border-dashed border-slate-200 rounded-lg">
+                {signers.map(signer => (
+                  <div key={signer.id} className="flex flex-col items-center justify-center opacity-90 p-4 border border-dashed border-slate-200 rounded-lg relative">
                     {signer.status === 'signed' ? (
                       <>
-                        <div className="text-primary-600 mb-2"><ShieldCheck className="h-8 w-8" /></div>
-                        <p className="text-sm font-semibold text-slate-700">Firmado por: {signer.name}</p>
-                        <p className="text-xs text-slate-500 mt-1">CC: {signer.nationalId} • {signer.role}</p>
-                        <p className="text-[10px] font-mono text-slate-400 mt-2 break-all text-center">Hash Validado: {Math.random().toString(36).substring(2, 15)}</p>
-                        <p className="text-[10px] text-slate-400 mt-1">{format(signer.signedAt!, 'dd/MM/yyyy HH:mm')}</p>
+                        {signer.signature_data && (
+                          <img src={signer.signature_data} alt="Firma" className="h-16 mb-2 object-contain mix-blend-multiply" />
+                        )}
+                        <div className="text-primary-600 mb-1 absolute top-2 right-2"><ShieldCheck className="h-5 w-5" /></div>
+                        <p className="text-sm font-semibold text-slate-700">Firmado por: {signer.signer_name}</p>
+                        <p className="text-xs text-slate-500 mt-1">CC: {signer.signer_national_id} • {signer.role}</p>
+                        <p className="text-[10px] text-slate-400 mt-1">{signer.signed_at ? format(new Date(signer.signed_at), 'dd/MM/yyyy HH:mm') : ''}</p>
                       </>
                     ) : (
                       <>
                         <div className="text-slate-300 mb-2"><UserCircle className="h-8 w-8" /></div>
                         <p className="text-sm font-medium text-slate-400">Firma Pendiente</p>
-                        <p className="text-xs text-slate-400 mt-1">{signer.name} ({signer.role})</p>
+                        <p className="text-xs text-slate-400 mt-1">{signer.signer_name} ({signer.role})</p>
                       </>
                     )}
                   </div>
@@ -175,15 +275,15 @@ export function ContractDetail() {
             <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Partes Involucradas</h3>
             
             <div className="space-y-4">
-              {contract.signers.map(signer => (
+              {signers.map(signer => (
                 <div key={signer.id} className="flex items-start gap-3">
                   <div className="mt-0.5">
                     {signer.status === 'signed' ? <CheckCircle className="h-4 w-4 text-green-500" /> : <div className="h-4 w-4 rounded-full border-2 border-slate-300" />}
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">{signer.role}</p>
-                    <p className="text-sm font-medium text-slate-900 mt-0.5">{signer.name}</p>
-                    <p className="text-xs text-slate-500">CC: {signer.nationalId}</p>
+                    <p className="text-sm font-medium text-slate-900 mt-0.5">{signer.signer_name}</p>
+                    <p className="text-xs text-slate-500">CC: {signer.signer_national_id}</p>
                   </div>
                 </div>
               ))}
@@ -222,7 +322,7 @@ export function ContractDetail() {
       </div>
 
       {/* Signature Modal (Smart Flow) */}
-      {isModalOpen && currentUserSigner && (
+      {isModalOpen && currentUserSigner && profile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -246,8 +346,8 @@ export function ContractDetail() {
                 <h4 className="text-center text-lg font-bold text-slate-800 mb-2">Confirmación de Identidad</h4>
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6 text-sm text-slate-700 space-y-2 text-center">
                    <p>Usted está autenticado actualmente como:</p>
-                   <p className="text-lg font-bold text-slate-900">{CURRENT_USER.name}</p>
-                   <p className="font-mono text-slate-500 bg-slate-200 inline-block px-2 py-0.5 rounded text-xs">ID: {CURRENT_USER.nationalId}</p>
+                   <p className="text-lg font-bold text-slate-900">{profile.full_name}</p>
+                   <p className="font-mono text-slate-500 bg-slate-200 inline-block px-2 py-0.5 rounded text-xs">ID: {profile.national_id}</p>
                 </div>
                 <p className="text-sm text-slate-600 text-center font-medium">
                   ¿Confirma que desea firmar este documento vinculante en calidad de <strong className="text-primary-700 bg-primary-50 px-1 py-0.5 rounded">{currentUserSigner.role}</strong>?

@@ -111,6 +111,33 @@ AS $$
   SELECT company_id FROM public.profiles WHERE id = auth.uid();
 $$;
 
+-- Funciones auxiliares para evitar recursión cruzada entre contracts y contract_signers
+CREATE OR REPLACE FUNCTION public.is_company_contract(c_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.contracts WHERE id = c_id AND company_id = public.get_my_company()
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_contract_signer(c_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.contract_signers 
+    WHERE contract_id = c_id 
+    AND signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid())
+  );
+$$;
+
 -- 3. POLÍTICAS DE SEGURIDAD (RLS)
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_requests ENABLE ROW LEVEL SECURITY;
@@ -180,11 +207,9 @@ ON public.companies FOR SELECT USING (
 -- POLÍTICAS: CONTRACTS
 CREATE POLICY "View contracts logic" 
 ON public.contracts FOR SELECT USING (
-    company_id = public.get_my_company()
-    OR 
-    id IN (SELECT contract_id FROM public.contract_signers WHERE signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid()))
-    OR
     public.get_my_role() = 'global_admin'
+    OR company_id = public.get_my_company()
+    OR public.is_contract_signer(id)
 );
 
 CREATE POLICY "Company members can insert contracts" 
@@ -205,25 +230,17 @@ ON public.contract_signers FOR UPDATE USING (
 
 CREATE POLICY "View signers logic" 
 ON public.contract_signers FOR SELECT USING (
-    contract_id IN (
-        SELECT id FROM public.contracts WHERE company_id = public.get_my_company()
-    )
-    OR
-    contract_id IN (SELECT contract_id FROM public.contract_signers WHERE signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid()))
-    OR
     public.get_my_role() = 'global_admin'
+    OR public.is_company_contract(contract_id)
+    OR signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid())
 );
 
 -- POLÍTICAS: LOGS (Blockchain)
 CREATE POLICY "View logs logic" 
 ON public.contract_logs FOR SELECT USING (
-    contract_id IN (
-        SELECT id FROM public.contracts WHERE company_id = public.get_my_company()
-    )
-    OR
-    contract_id IN (SELECT contract_id FROM public.contract_signers WHERE signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid()))
-    OR
     public.get_my_role() = 'global_admin'
+    OR public.is_company_contract(contract_id)
+    OR public.is_contract_signer(contract_id)
 );
 CREATE POLICY "Users can insert logs" 
 ON public.contract_logs FOR INSERT WITH CHECK (auth.uid() = user_id);

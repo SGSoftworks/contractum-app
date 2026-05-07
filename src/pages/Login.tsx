@@ -30,18 +30,23 @@ export function Login() {
         const { error } = await supabase.auth.signInWithOtp({ email });
         if (error) throw error;
         setSuccessMessage('Enlace enviado a tu correo. Revisa tu bandeja de entrada.');
+        setLoading(false);
       } else if (isSignUp) {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         setSuccessMessage('Registro exitoso. Puedes iniciar sesión ahora o revisar tu correo para confirmar.');
-        setIsSignUp(false); // Volver a login después de registro exitoso
+        setIsSignUp(false);
+        setLoading(false);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
+        // No ponemos setLoading(false) aquí si es exitoso, 
+        // porque authStore tomará el control y hará la redirección cuando descargue el perfil.
       }
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };

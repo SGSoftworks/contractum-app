@@ -87,23 +87,28 @@ CREATE TABLE public.contract_logs (
 );
 
 -- 2. FUNCIONES DE SEGURIDAD (SECURITY DEFINER)
--- Estas funciones permiten consultar el rol y compañía del usuario sin disparar recursión infinita en las políticas RLS.
-CREATE OR REPLACE FUNCTION public.get_user_role(user_id uuid)
+-- Añadimos STABLE para optimizar drásticamente la latencia y eliminamos parámetros para evitar fugas de información.
+DROP FUNCTION IF EXISTS public.get_user_role(uuid);
+DROP FUNCTION IF EXISTS public.get_user_company(uuid);
+
+CREATE OR REPLACE FUNCTION public.get_my_role()
 RETURNS text
 LANGUAGE sql
+STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT role FROM public.profiles WHERE id = user_id;
+  SELECT role FROM public.profiles WHERE id = auth.uid();
 $$;
 
-CREATE OR REPLACE FUNCTION public.get_user_company(user_id uuid)
+CREATE OR REPLACE FUNCTION public.get_my_company()
 RETURNS uuid
 LANGUAGE sql
+STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT company_id FROM public.profiles WHERE id = user_id;
+  SELECT company_id FROM public.profiles WHERE id = auth.uid();
 $$;
 
 -- 3. POLÍTICAS DE SEGURIDAD (RLS)
@@ -137,13 +142,13 @@ CREATE POLICY "Users can insert their own profile"
 ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Users can update their own profile" 
-ON public.profiles FOR UPDATE USING (auth.uid() = id OR public.get_user_role(auth.uid()) = 'global_admin');
+ON public.profiles FOR UPDATE USING (auth.uid() = id OR public.get_my_role() = 'global_admin');
 
 CREATE POLICY "Admins can view profiles" 
 ON public.profiles FOR SELECT USING (
     auth.uid() = id
-    OR public.get_user_role(auth.uid()) = 'global_admin'
-    OR company_id = public.get_user_company(auth.uid())
+    OR public.get_my_role() = 'global_admin'
+    OR company_id = public.get_my_company()
 );
 
 -- POLÍTICAS: COMPANY REQUESTS
@@ -152,44 +157,44 @@ ON public.company_requests FOR INSERT WITH CHECK (auth.uid() = auth_user_id);
 
 CREATE POLICY "Global admins can view all requests" 
 ON public.company_requests FOR SELECT USING (
-    public.get_user_role(auth.uid()) = 'global_admin'
+    public.get_my_role() = 'global_admin'
     OR auth.uid() = auth_user_id
 );
 
 CREATE POLICY "Global admins can update requests" 
 ON public.company_requests FOR UPDATE USING (
-    public.get_user_role(auth.uid()) = 'global_admin'
+    public.get_my_role() = 'global_admin'
 );
 
 -- POLÍTICAS: COMPANIES
 CREATE POLICY "Global admins can insert companies" 
 ON public.companies FOR INSERT WITH CHECK (
-    public.get_user_role(auth.uid()) = 'global_admin'
+    public.get_my_role() = 'global_admin'
 );
 CREATE POLICY "Companies are viewable by members and global admins" 
 ON public.companies FOR SELECT USING (
-    id = public.get_user_company(auth.uid())
-    OR public.get_user_role(auth.uid()) = 'global_admin'
+    id = public.get_my_company()
+    OR public.get_my_role() = 'global_admin'
 );
 
 -- POLÍTICAS: CONTRACTS
 CREATE POLICY "View contracts logic" 
 ON public.contracts FOR SELECT USING (
-    company_id = public.get_user_company(auth.uid())
+    company_id = public.get_my_company()
     OR 
     id IN (SELECT contract_id FROM public.contract_signers WHERE signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid()))
     OR
-    public.get_user_role(auth.uid()) = 'global_admin'
+    public.get_my_role() = 'global_admin'
 );
 
 CREATE POLICY "Company members can insert contracts" 
 ON public.contracts FOR INSERT WITH CHECK (
-    company_id = public.get_user_company(auth.uid()) AND public.get_user_role(auth.uid()) IN ('company_admin', 'employee')
+    company_id = public.get_my_company() AND public.get_my_role() IN ('company_admin', 'employee')
 );
 CREATE POLICY "Company members can update contracts" 
 ON public.contracts FOR UPDATE USING (
-    (company_id = public.get_user_company(auth.uid()) AND public.get_user_role(auth.uid()) IN ('company_admin', 'employee'))
-    OR public.get_user_role(auth.uid()) = 'global_admin'
+    (company_id = public.get_my_company() AND public.get_my_role() IN ('company_admin', 'employee'))
+    OR public.get_my_role() = 'global_admin'
 );
 
 -- POLÍTICAS: SIGNERS
@@ -201,24 +206,24 @@ ON public.contract_signers FOR UPDATE USING (
 CREATE POLICY "View signers logic" 
 ON public.contract_signers FOR SELECT USING (
     contract_id IN (
-        SELECT id FROM public.contracts WHERE company_id = public.get_user_company(auth.uid())
+        SELECT id FROM public.contracts WHERE company_id = public.get_my_company()
     )
     OR
     contract_id IN (SELECT contract_id FROM public.contract_signers WHERE signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid()))
     OR
-    public.get_user_role(auth.uid()) = 'global_admin'
+    public.get_my_role() = 'global_admin'
 );
 
 -- POLÍTICAS: LOGS (Blockchain)
 CREATE POLICY "View logs logic" 
 ON public.contract_logs FOR SELECT USING (
     contract_id IN (
-        SELECT id FROM public.contracts WHERE company_id = public.get_user_company(auth.uid())
+        SELECT id FROM public.contracts WHERE company_id = public.get_my_company()
     )
     OR
     contract_id IN (SELECT contract_id FROM public.contract_signers WHERE signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid()))
     OR
-    public.get_user_role(auth.uid()) = 'global_admin'
+    public.get_my_role() = 'global_admin'
 );
 CREATE POLICY "Users can insert logs" 
 ON public.contract_logs FOR INSERT WITH CHECK (auth.uid() = user_id);

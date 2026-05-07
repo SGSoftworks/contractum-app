@@ -53,21 +53,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: () => {
+    let isInitialized = false;
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         await get().fetchProfile(session.user.id);
       }
       set({ session, user: session?.user ?? null, isLoading: false });
+      isInitialized = true;
     });
 
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-      set({ isLoading: true });
-      if (session?.user) {
-        await get().fetchProfile(session.user.id);
-      } else {
-        set({ profile: null });
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        set({ session: null, user: null, profile: null, isLoading: false });
+        return;
       }
-      set({ session, user: session?.user ?? null, isLoading: false });
+
+      // Si se refresca el token en segundo plano, solo actualizamos los datos silenciosamente
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        set({ session, user: session?.user ?? null });
+        return;
+      }
+
+      // Para SIGNED_IN, mostramos carga y obtenemos perfil
+      if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && !isInitialized)) {
+        set({ isLoading: true });
+        try {
+          if (session?.user) {
+            await get().fetchProfile(session.user.id);
+          } else {
+            set({ profile: null });
+          }
+        } finally {
+          set({ session, user: session?.user ?? null, isLoading: false });
+          isInitialized = true;
+        }
+      }
     });
   }
 }));

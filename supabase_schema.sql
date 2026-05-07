@@ -86,7 +86,27 @@ CREATE TABLE public.contract_logs (
     hash TEXT NOT NULL
 );
 
--- 2. POLÍTICAS DE SEGURIDAD (RLS)
+-- 2. FUNCIONES DE SEGURIDAD (SECURITY DEFINER)
+-- Estas funciones permiten consultar el rol y compañía del usuario sin disparar recursión infinita en las políticas RLS.
+CREATE OR REPLACE FUNCTION public.get_user_role(user_id uuid)
+RETURNS text
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM public.profiles WHERE id = user_id;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_user_company(user_id uuid)
+RETURNS uuid
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT company_id FROM public.profiles WHERE id = user_id;
+$$;
+
+-- 3. POLÍTICAS DE SEGURIDAD (RLS)
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -95,18 +115,35 @@ ALTER TABLE public.contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contract_signers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contract_logs ENABLE ROW LEVEL SECURITY;
 
+-- ELIMINAR POLÍTICAS ANTERIORES PARA EVITAR DUPLICADOS
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Admins can view profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert their own requests" ON public.company_requests;
+DROP POLICY IF EXISTS "Global admins can view all requests" ON public.company_requests;
+DROP POLICY IF EXISTS "Global admins can update requests" ON public.company_requests;
+DROP POLICY IF EXISTS "Global admins can insert companies" ON public.companies;
+DROP POLICY IF EXISTS "Companies are viewable by members and global admins" ON public.companies;
+DROP POLICY IF EXISTS "View contracts logic" ON public.contracts;
+DROP POLICY IF EXISTS "Company members can insert contracts" ON public.contracts;
+DROP POLICY IF EXISTS "Company members can update contracts" ON public.contracts;
+DROP POLICY IF EXISTS "Recipients can sign their assigned contracts" ON public.contract_signers;
+DROP POLICY IF EXISTS "View signers logic" ON public.contract_signers;
+DROP POLICY IF EXISTS "View logs logic" ON public.contract_logs;
+DROP POLICY IF EXISTS "Users can insert logs" ON public.contract_logs;
+
 -- POLÍTICAS: PROFILES
 CREATE POLICY "Users can insert their own profile" 
 ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Users can update their own profile" 
-ON public.profiles FOR UPDATE USING (auth.uid() = id OR (SELECT role FROM public.profiles p2 WHERE p2.id = auth.uid()) = 'global_admin');
+ON public.profiles FOR UPDATE USING (auth.uid() = id OR public.get_user_role(auth.uid()) = 'global_admin');
 
 CREATE POLICY "Admins can view profiles" 
 ON public.profiles FOR SELECT USING (
     auth.uid() = id
-    OR (SELECT role FROM public.profiles p2 WHERE p2.id = auth.uid()) = 'global_admin'
-    OR company_id IN (SELECT company_id FROM public.profiles p3 WHERE p3.id = auth.uid() AND p3.role IN ('company_admin', 'employee'))
+    OR public.get_user_role(auth.uid()) = 'global_admin'
+    OR company_id = public.get_user_company(auth.uid())
 );
 
 -- POLÍTICAS: COMPANY REQUESTS
@@ -115,44 +152,44 @@ ON public.company_requests FOR INSERT WITH CHECK (auth.uid() = auth_user_id);
 
 CREATE POLICY "Global admins can view all requests" 
 ON public.company_requests FOR SELECT USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'global_admin'
+    public.get_user_role(auth.uid()) = 'global_admin'
     OR auth.uid() = auth_user_id
 );
 
 CREATE POLICY "Global admins can update requests" 
 ON public.company_requests FOR UPDATE USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'global_admin'
+    public.get_user_role(auth.uid()) = 'global_admin'
 );
 
 -- POLÍTICAS: COMPANIES
 CREATE POLICY "Global admins can insert companies" 
 ON public.companies FOR INSERT WITH CHECK (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'global_admin'
+    public.get_user_role(auth.uid()) = 'global_admin'
 );
 CREATE POLICY "Companies are viewable by members and global admins" 
 ON public.companies FOR SELECT USING (
-    id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid())
-    OR (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'global_admin'
+    id = public.get_user_company(auth.uid())
+    OR public.get_user_role(auth.uid()) = 'global_admin'
 );
 
 -- POLÍTICAS: CONTRACTS
 CREATE POLICY "View contracts logic" 
 ON public.contracts FOR SELECT USING (
-    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid() AND role IN ('company_admin', 'employee'))
+    company_id = public.get_user_company(auth.uid())
     OR 
     id IN (SELECT contract_id FROM public.contract_signers WHERE signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid()))
     OR
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'global_admin'
+    public.get_user_role(auth.uid()) = 'global_admin'
 );
 
 CREATE POLICY "Company members can insert contracts" 
 ON public.contracts FOR INSERT WITH CHECK (
-    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid() AND role IN ('company_admin', 'employee'))
+    company_id = public.get_user_company(auth.uid()) AND public.get_user_role(auth.uid()) IN ('company_admin', 'employee')
 );
 CREATE POLICY "Company members can update contracts" 
 ON public.contracts FOR UPDATE USING (
-    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid() AND role IN ('company_admin', 'employee'))
-    OR (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'global_admin'
+    (company_id = public.get_user_company(auth.uid()) AND public.get_user_role(auth.uid()) IN ('company_admin', 'employee'))
+    OR public.get_user_role(auth.uid()) = 'global_admin'
 );
 
 -- POLÍTICAS: SIGNERS
@@ -164,28 +201,24 @@ ON public.contract_signers FOR UPDATE USING (
 CREATE POLICY "View signers logic" 
 ON public.contract_signers FOR SELECT USING (
     contract_id IN (
-        SELECT id FROM public.contracts WHERE company_id IN (
-            SELECT company_id FROM public.profiles WHERE id = auth.uid() AND role IN ('company_admin', 'employee')
-        )
+        SELECT id FROM public.contracts WHERE company_id = public.get_user_company(auth.uid())
     )
     OR
     contract_id IN (SELECT contract_id FROM public.contract_signers WHERE signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid()))
     OR
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'global_admin'
+    public.get_user_role(auth.uid()) = 'global_admin'
 );
 
 -- POLÍTICAS: LOGS (Blockchain)
 CREATE POLICY "View logs logic" 
 ON public.contract_logs FOR SELECT USING (
     contract_id IN (
-        SELECT id FROM public.contracts WHERE company_id IN (
-            SELECT company_id FROM public.profiles WHERE id = auth.uid() AND role IN ('company_admin', 'employee')
-        )
+        SELECT id FROM public.contracts WHERE company_id = public.get_user_company(auth.uid())
     )
     OR
     contract_id IN (SELECT contract_id FROM public.contract_signers WHERE signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid()))
     OR
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'global_admin'
+    public.get_user_role(auth.uid()) = 'global_admin'
 );
 CREATE POLICY "Users can insert logs" 
 ON public.contract_logs FOR INSERT WITH CHECK (auth.uid() = user_id);

@@ -10,9 +10,7 @@ import { Onboarding } from './pages/Onboarding';
 import { Dashboard } from './pages/Dashboard';
 import { ContractsList } from './pages/ContractsList';
 import { CreateContract } from './pages/CreateContract';
-import { ContractDetail } from './pages/ContractDetail';
-import { Audit } from './pages/Audit';
-import { Blockchain } from './pages/Blockchain';
+import { SignerView } from './pages/SignerView';
 import { Users } from './pages/Users';
 import { Settings } from './pages/Settings';
 import { useAuthStore } from './store/authStore';
@@ -33,6 +31,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register-company" element={<RegisterCompany />} />
         <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/view-contract/:id" element={<SignerView />} />
         
         {/* Rutas Protegidas de la Aplicación */}
         <Route path="/app" element={<ProtectedRoute />}>
@@ -40,9 +39,6 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="contracts" element={<ContractsList />} />
             <Route path="contracts/new" element={<CreateContract />} />
-            <Route path="contracts/:id" element={<ContractDetail />} />
-            <Route path="audit" element={<Audit />} />
-            <Route path="blockchain" element={<Blockchain />} />
             <Route path="users" element={<Users />} />
             <Route path="settings" element={<Settings />} />
           </Route>

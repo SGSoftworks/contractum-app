@@ -1,40 +1,149 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { FileText, Clock, CheckCircle } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
+import { FileText, Clock, CheckCircle, Users, Check, X } from 'lucide-react';
 
 export function Dashboard() {
+  const { profile } = useAuthStore();
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
     completed: 0
   });
+  
+  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchStats() {
-      try {
-        const { data, error } = await supabase
+    fetchData();
+  }, [profile]);
+
+  async function fetchData() {
+    setLoading(true);
+    try {
+      if (profile?.is_global_admin) {
+        // Fetch users for approval
+        const { data: users, error: usersError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('is_global_admin', false)
+          .order('created_at', { ascending: false });
+          
+        if (usersError) throw usersError;
+        setPendingUsers(users || []);
+      } else {
+        // Fetch stats for companies
+        const { data: contracts, error: contractsError } = await supabase
           .from('contracts')
           .select('status');
           
-        if (error) throw error;
+        if (contractsError) throw contractsError;
         
-        if (data) {
+        if (contracts) {
           setStats({
-            total: data.length,
-            pending: data.filter(c => c.status === 'pending_signature').length,
-            completed: data.filter(c => c.status === 'signed' || c.status === 'validated').length
+            total: contracts.length,
+            pending: contracts.filter(c => c.status === 'pending').length,
+            completed: contracts.filter(c => c.status === 'signed').length
           });
         }
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      } finally {
-        setLoading(false);
       }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
     }
-    
-    fetchStats();
-  }, []);
+  }
+
+  const handleApprove = async (userId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_approved: !currentStatus })
+        .eq('id', userId);
+        
+      if (error) throw error;
+      await fetchData();
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      alert('Error al actualizar estado del usuario');
+    }
+  };
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500">Cargando...</div>;
+  }
+
+  if (profile?.is_global_admin) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Panel de Administración Global</h2>
+          <p className="text-sm text-slate-500 mt-1">Gestiona las aprobaciones de empresas en la plataforma</p>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary-600" />
+            <h3 className="font-semibold text-slate-800">Empresas Registradas</h3>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-white">
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Empresa / Contacto</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Email</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Cédula / NIT</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Estado</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {pendingUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                      No hay empresas registradas.
+                    </td>
+                  </tr>
+                ) : (
+                  pendingUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-slate-900">{user.full_name}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{user.email}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{user.national_id || '-'}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                          user.is_approved ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {user.is_approved ? 'Aprobado' : 'Pendiente'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right">
+                        <button
+                          onClick={() => handleApprove(user.id, user.is_approved)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                            user.is_approved 
+                              ? 'text-red-700 bg-red-50 hover:bg-red-100'
+                              : 'text-green-700 bg-green-50 hover:bg-green-100'
+                          }`}
+                        >
+                          {user.is_approved ? (
+                            <><X className="h-4 w-4" /> Revocar</>
+                          ) : (
+                            <><Check className="h-4 w-4" /> Aprobar</>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -50,7 +159,7 @@ export function Dashboard() {
           </div>
           <div>
             <h3 className="text-sm font-medium text-slate-500">Contratos Activos</h3>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{loading ? '-' : stats.total}</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{stats.total}</p>
           </div>
         </div>
         
@@ -61,7 +170,7 @@ export function Dashboard() {
           </div>
           <div>
             <h3 className="text-sm font-medium text-amber-800">Pendientes de Firma</h3>
-            <p className="mt-1 text-3xl font-bold text-amber-600">{loading ? '-' : stats.pending}</p>
+            <p className="mt-1 text-3xl font-bold text-amber-600">{stats.pending}</p>
           </div>
         </div>
         
@@ -72,7 +181,7 @@ export function Dashboard() {
           </div>
           <div>
             <h3 className="text-sm font-medium text-emerald-800">Completados</h3>
-            <p className="mt-1 text-3xl font-bold text-emerald-600">{loading ? '-' : stats.completed}</p>
+            <p className="mt-1 text-3xl font-bold text-emerald-600">{stats.completed}</p>
           </div>
         </div>
       </div>

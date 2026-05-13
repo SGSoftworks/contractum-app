@@ -5,9 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 
 const navigation = [
   { name: 'Dashboard', href: '/app', icon: LayoutDashboard },
-  { name: 'Contratos', href: '/app/contracts', icon: FileText },
-  { name: 'Blockchain', href: '/app/blockchain', icon: LinkIcon },
-  { name: 'Auditoría', href: '/app/audit', icon: FileText },
+  { name: 'Estado de Contratos', href: '/app/contracts', icon: FileText },
   { name: 'Usuarios', href: '/app/users', icon: Users },
   { name: 'Configuración', href: '/app/settings', icon: Settings },
 ];
@@ -64,7 +62,7 @@ export function MainLayout() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate">{profile?.full_name || 'Usuario'}</p>
-                <p className="text-xs text-primary-300 truncate capitalize">{profile?.role?.replace('_', ' ') || 'Sin Rol'}</p>
+                <p className="text-xs text-primary-300 truncate capitalize">{profile?.is_global_admin ? 'Admin Global' : (profile?.is_approved ? 'Empresa' : 'Pendiente')}</p>
               </div>
               <button onClick={() => signOut()} className="text-primary-400 hover:text-red-400 transition-colors p-1 rounded-md hover:bg-primary-800">
                 <LogOut className="h-5 w-5" />

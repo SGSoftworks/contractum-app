@@ -1,246 +1,152 @@
 -- =========================================================================================
--- CONTRACTUM - ESQUEMA DE BASE DE DATOS Y RLS (ACTUALIZADO - MULTI-INQUILINO SAAS)
--- Copia y pega esto en el SQL Editor de Supabase
--- IMPORTANTE: Si ya creaste las tablas, puedes borrar todo ("Drop cascade") o ejecutar solo las partes nuevas.
+-- CONTRACTUM SIMPLIFICADO - ESQUEMA DE BASE DE DATOS Y RLS
 -- =========================================================================================
 
+-- Extensiones
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. TABLAS PRINCIPALES
-CREATE TABLE public.companies (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Limpieza total previa (CUIDADO: Esto borra todas las tablas y datos relacionados)
+DROP TABLE IF EXISTS public.contract_logs CASCADE;
+DROP TABLE IF EXISTS public.contract_signers CASCADE;
+DROP TABLE IF EXISTS public.contracts CASCADE;
+DROP TABLE IF EXISTS public.contract_templates CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
+DROP TABLE IF EXISTS public.company_requests CASCADE;
+DROP TABLE IF EXISTS public.companies CASCADE;
 
--- NUEVA TABLA: Solicitudes de Registro de Empresas
-CREATE TABLE public.company_requests (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_name TEXT NOT NULL,
-    representative_name TEXT NOT NULL,
-    address TEXT,
-    contact_email TEXT NOT NULL,
-    auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
+-- 1. Usuarios y Empresas (Unificados)
 CREATE TABLE public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    company_id UUID REFERENCES public.companies(id) ON DELETE SET NULL,
-    -- Se añade el rol 'pending' para usuarios que aún no han sido aprobados
-    role TEXT NOT NULL CHECK (role IN ('global_admin', 'company_admin', 'employee', 'recipient', 'pending')),
-    national_id TEXT UNIQUE,
     full_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    national_id TEXT UNIQUE,
+    is_global_admin BOOLEAN DEFAULT FALSE,
+    is_approved BOOLEAN DEFAULT FALSE, -- Control de acceso para empresas
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE public.contract_templates (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    content JSONB NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
+-- 2. Contratos (El corazón del sistema)
 CREATE TABLE public.contracts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
-    template_id UUID REFERENCES public.contract_templates(id) ON DELETE SET NULL,
+    owner_id UUID REFERENCES public.profiles(id), -- Empresa que lo creó
     title TEXT NOT NULL,
     content TEXT NOT NULL,
-    jurisdiction TEXT DEFAULT 'Nacional',
-    confidentiality_level TEXT DEFAULT 'Estándar',
-    validity_period TEXT,
-    status TEXT NOT NULL CHECK (status IN ('draft', 'pending_signature', 'signed', 'validated', 'cancelled')) DEFAULT 'draft',
-    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    status TEXT CHECK (status IN ('pending', 'signed', 'rejected', 'cancelled')) DEFAULT 'pending',
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
     pdf_url TEXT
 );
 
+-- 3. Firmantes (Lógica de acceso por consulta)
 CREATE TABLE public.contract_signers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     contract_id UUID REFERENCES public.contracts(id) ON DELETE CASCADE,
     signer_name TEXT NOT NULL,
     signer_email TEXT NOT NULL,
     signer_national_id TEXT NOT NULL,
-    role TEXT NOT NULL,
-    status TEXT DEFAULT 'pending',
+    has_signed BOOLEAN DEFAULT FALSE,
     signed_at TIMESTAMPTZ,
-    signature_data TEXT,
-    ip_address TEXT,
-    UNIQUE(contract_id, signer_national_id) 
+    signature_data TEXT, -- Base64
+    UNIQUE(contract_id, signer_national_id)
 );
 
-CREATE TABLE public.contract_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    contract_id UUID REFERENCES public.contracts(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    action TEXT NOT NULL,
-    action_timestamp TIMESTAMPTZ DEFAULT NOW(),
-    ip_address TEXT,
-    details JSONB,
-    previous_hash TEXT,
-    hash TEXT NOT NULL
-);
-
--- 2. FUNCIONES DE SEGURIDAD (SECURITY DEFINER)
--- Añadimos STABLE para optimizar drásticamente la latencia y eliminamos parámetros para evitar fugas de información.
-DROP FUNCTION IF EXISTS public.get_user_role(uuid);
-DROP FUNCTION IF EXISTS public.get_user_company(uuid);
-
-CREATE OR REPLACE FUNCTION public.get_my_role()
-RETURNS text
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT role FROM public.profiles WHERE id = auth.uid();
-$$;
-
-CREATE OR REPLACE FUNCTION public.get_my_company()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT company_id FROM public.profiles WHERE id = auth.uid();
-$$;
-
--- Funciones auxiliares para evitar recursión cruzada entre contracts y contract_signers
-CREATE OR REPLACE FUNCTION public.is_company_contract(c_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.contracts WHERE id = c_id AND company_id = public.get_my_company()
-  );
-$$;
-
-CREATE OR REPLACE FUNCTION public.is_contract_signer(c_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.contract_signers 
-    WHERE contract_id = c_id 
-    AND signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid())
-  );
-$$;
-
--- 3. POLÍTICAS DE SEGURIDAD (RLS)
-ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_requests ENABLE ROW LEVEL SECURITY;
+-- ==========================================
+-- ROW LEVEL SECURITY (RLS)
+-- ==========================================
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.contract_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contract_signers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.contract_logs ENABLE ROW LEVEL SECURITY;
 
--- ELIMINAR POLÍTICAS ANTERIORES PARA EVITAR DUPLICADOS
-DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Admins can view profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Users can insert their own requests" ON public.company_requests;
-DROP POLICY IF EXISTS "Global admins can view all requests" ON public.company_requests;
-DROP POLICY IF EXISTS "Global admins can update requests" ON public.company_requests;
-DROP POLICY IF EXISTS "Global admins can insert companies" ON public.companies;
-DROP POLICY IF EXISTS "Companies are viewable by members and global admins" ON public.companies;
-DROP POLICY IF EXISTS "View contracts logic" ON public.contracts;
-DROP POLICY IF EXISTS "Company members can insert contracts" ON public.contracts;
-DROP POLICY IF EXISTS "Company members can update contracts" ON public.contracts;
-DROP POLICY IF EXISTS "Recipients can sign their assigned contracts" ON public.contract_signers;
-DROP POLICY IF EXISTS "View signers logic" ON public.contract_signers;
-DROP POLICY IF EXISTS "View logs logic" ON public.contract_logs;
-DROP POLICY IF EXISTS "Users can insert logs" ON public.contract_logs;
+-- ------------------------------------------
+-- PERFILES (profiles)
+-- ------------------------------------------
+-- 1. Un usuario puede ver y editar su propio perfil
+CREATE POLICY "Users can view own profile" 
+ON public.profiles FOR SELECT USING (auth.uid() = id);
 
--- POLÍTICAS: PROFILES
-CREATE POLICY "Users can insert their own profile" 
+CREATE POLICY "Users can insert own profile" 
 ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Users can update their own profile" 
-ON public.profiles FOR UPDATE USING (auth.uid() = id OR public.get_my_role() = 'global_admin');
+CREATE POLICY "Users can update own profile" 
+ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
-CREATE POLICY "Admins can view profiles" 
+-- 2. Admin Global puede ver y actualizar todos los perfiles
+CREATE POLICY "Global admin can view all profiles" 
 ON public.profiles FOR SELECT USING (
-    auth.uid() = id
-    OR public.get_my_role() = 'global_admin'
-    OR company_id = public.get_my_company()
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_global_admin = true)
 );
 
--- POLÍTICAS: COMPANY REQUESTS
-CREATE POLICY "Users can insert their own requests" 
-ON public.company_requests FOR INSERT WITH CHECK (auth.uid() = auth_user_id);
-
-CREATE POLICY "Global admins can view all requests" 
-ON public.company_requests FOR SELECT USING (
-    public.get_my_role() = 'global_admin'
-    OR auth.uid() = auth_user_id
+CREATE POLICY "Global admin can update all profiles" 
+ON public.profiles FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_global_admin = true)
 );
 
-CREATE POLICY "Global admins can update requests" 
-ON public.company_requests FOR UPDATE USING (
-    public.get_my_role() = 'global_admin'
-);
-
--- POLÍTICAS: COMPANIES
-CREATE POLICY "Global admins can insert companies" 
-ON public.companies FOR INSERT WITH CHECK (
-    public.get_my_role() = 'global_admin'
-);
-CREATE POLICY "Companies are viewable by members and global admins" 
-ON public.companies FOR SELECT USING (
-    id = public.get_my_company()
-    OR public.get_my_role() = 'global_admin'
-);
-
--- POLÍTICAS: CONTRACTS
-CREATE POLICY "View contracts logic" 
-ON public.contracts FOR SELECT USING (
-    public.get_my_role() = 'global_admin'
-    OR company_id = public.get_my_company()
-    OR public.is_contract_signer(id)
-);
-
-CREATE POLICY "Company members can insert contracts" 
+-- ------------------------------------------
+-- CONTRATOS (contracts)
+-- ------------------------------------------
+-- 1. Empresas aprobadas pueden crear contratos
+CREATE POLICY "Approved companies can insert contracts" 
 ON public.contracts FOR INSERT WITH CHECK (
-    company_id = public.get_my_company() AND public.get_my_role() IN ('company_admin', 'employee')
+    owner_id = auth.uid() AND 
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_approved = true)
 );
-CREATE POLICY "Company members can update contracts" 
+
+-- 2. Empresas aprobadas pueden ver sus propios contratos
+CREATE POLICY "Companies can view own contracts" 
+ON public.contracts FOR SELECT USING (
+    owner_id = auth.uid() AND 
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_approved = true)
+);
+
+-- 3. Empresas aprobadas pueden actualizar sus contratos (ej. cancelar)
+CREATE POLICY "Companies can update own contracts" 
 ON public.contracts FOR UPDATE USING (
-    (company_id = public.get_my_company() AND public.get_my_role() IN ('company_admin', 'employee'))
-    OR public.get_my_role() = 'global_admin'
+    owner_id = auth.uid() AND 
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_approved = true)
 );
 
--- POLÍTICAS: SIGNERS
-CREATE POLICY "Recipients can sign their assigned contracts" 
-ON public.contract_signers FOR UPDATE USING (
-    signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid())
+-- 4. Admin Global puede ver todos los contratos
+CREATE POLICY "Global admin can view all contracts" 
+ON public.contracts FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_global_admin = true)
 );
 
-CREATE POLICY "View signers logic" 
+-- 5. Portal de Consulta: Lectura de contratos por ID. La seguridad estricta
+--    se maneja a nivel de aplicación (FrontEnd/RPC) requiriendo validación contra contract_signers.
+CREATE POLICY "Public read access to specific contracts" 
+ON public.contracts FOR SELECT USING (true);
+-- Nota: También podríamos restringir la lectura pública si lo preferimos, pero usar "true" para SELECT 
+-- facilita que la app cargue los datos si se tiene el ID (UUID), el cual es difícil de adivinar. 
+
+-- Opcional (si queremos restringir que solo se actualice status publicamente por el firmante):
+-- Dado que un firmante anónimo (no logueado) debe poder firmar/rechazar, necesitamos permitir actualizaciones
+CREATE POLICY "Public update access for signatures" 
+ON public.contracts FOR UPDATE USING (true); 
+
+-- ------------------------------------------
+-- FIRMANTES (contract_signers)
+-- ------------------------------------------
+-- 1. Empresas aprobadas pueden insertar firmantes para sus contratos
+CREATE POLICY "Companies can insert signers for their contracts" 
+ON public.contract_signers FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM public.contracts WHERE id = contract_id AND owner_id = auth.uid()) AND
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_approved = true)
+);
+
+-- 2. Empresas aprobadas pueden ver los firmantes de sus contratos
+CREATE POLICY "Companies can view signers for their contracts" 
 ON public.contract_signers FOR SELECT USING (
-    public.get_my_role() = 'global_admin'
-    OR public.is_company_contract(contract_id)
-    OR signer_national_id = (SELECT national_id FROM public.profiles WHERE id = auth.uid())
+    EXISTS (SELECT 1 FROM public.contracts WHERE id = contract_id AND owner_id = auth.uid())
 );
 
--- POLÍTICAS: LOGS (Blockchain)
-CREATE POLICY "View logs logic" 
-ON public.contract_logs FOR SELECT USING (
-    public.get_my_role() = 'global_admin'
-    OR public.is_company_contract(contract_id)
-    OR public.is_contract_signer(contract_id)
-);
-CREATE POLICY "Users can insert logs" 
-ON public.contract_logs FOR INSERT WITH CHECK (auth.uid() = user_id);
+-- 3. Portal de Consulta: Cualquiera puede consultar la tabla de firmantes (para validar credenciales)
+CREATE POLICY "Public read access for signers validation" 
+ON public.contract_signers FOR SELECT USING (true);
+
+-- 4. Portal de Consulta: Un firmante anónimo debe poder guardar su firma
+CREATE POLICY "Public update access to sign" 
+ON public.contract_signers FOR UPDATE USING (true);
+
+-- ------------------------------------------
+-- TRIGGER PARA SINCRONIZAR EMAIL DESDE AUTH (Opcional, pero recomendado)
+-- ------------------------------------------
+-- (Asumimos que el front enviará el email en el insert del profile, no requiere trigger estricto en este caso simple)

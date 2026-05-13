@@ -4,10 +4,11 @@ import { supabase } from '@/lib/supabase';
 
 export interface Profile {
   id: string;
-  company_id: string | null;
-  role: 'global_admin' | 'company_admin' | 'employee' | 'recipient' | 'pending';
-  national_id: string | null;
   full_name: string;
+  email: string;
+  national_id: string | null;
+  is_global_admin: boolean;
+  is_approved: boolean;
   created_at: string;
 }
 

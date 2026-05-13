@@ -18,7 +18,7 @@ export function ProtectedRoute() {
     return <Navigate to="/onboarding" replace />;
   }
 
-  if (profile.role === 'pending') {
+  if (!profile.is_approved && !profile.is_global_admin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
         <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-amber-100">

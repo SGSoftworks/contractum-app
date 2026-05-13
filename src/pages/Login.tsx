@@ -32,21 +32,36 @@ export function Login() {
         setSuccessMessage('Enlace enviado a tu correo. Revisa tu bandeja de entrada.');
         setLoading(false);
       } else if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         setSuccessMessage('Registro exitoso. Puedes iniciar sesión ahora o revisar tu correo para confirmar.');
         setIsSignUp(false);
         setLoading(false);
+        
+        // Si Supabase logueó automáticamente al usuario (confirm email OFF)
+        if (data.session) {
+          useAuthStore.getState().setSession(data.session);
+          useAuthStore.getState().setUser(data.user);
+          await useAuthStore.getState().fetchProfile(data.user!.id);
+        }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
           throw error;
         }
-        // No ponemos setLoading(false) aquí si es exitoso, 
-        // porque authStore tomará el control y hará la redirección cuando descargue el perfil.
+        
+        if (data.session) {
+          // Forzar la actualización del estado si el listener es lento
+          useAuthStore.getState().setSession(data.session);
+          useAuthStore.getState().setUser(data.user);
+          await useAuthStore.getState().fetchProfile(data.user!.id);
+        } else {
+          setLoading(false);
+        }
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error("Auth error:", err);
+      setError(err.message || "Ocurrió un error inesperado al autenticar");
       setLoading(false);
     }
   };

@@ -50,6 +50,34 @@ CREATE TABLE public.contract_signers (
 );
 
 -- ==========================================
+-- FUNCIONES AUXILIARES (SECURITY DEFINER)
+-- PARA EVITAR RECURSIÓN INFINITA (ERROR 500)
+-- ==========================================
+
+-- Obtiene el estado de global_admin del usuario actual sin disparar RLS
+CREATE OR REPLACE FUNCTION public.is_current_user_global_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT is_global_admin FROM public.profiles WHERE id = auth.uid();
+$$;
+
+-- Obtiene el estado de aprobación de empresa del usuario actual sin disparar RLS
+CREATE OR REPLACE FUNCTION public.is_current_user_approved_company()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT is_approved FROM public.profiles WHERE id = auth.uid();
+$$;
+
+
+-- ==========================================
 -- ROW LEVEL SECURITY (RLS)
 -- ==========================================
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -71,14 +99,10 @@ ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
 -- 2. Admin Global puede ver y actualizar todos los perfiles
 CREATE POLICY "Global admin can view all profiles" 
-ON public.profiles FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_global_admin = true)
-);
+ON public.profiles FOR SELECT USING (public.is_current_user_global_admin());
 
 CREATE POLICY "Global admin can update all profiles" 
-ON public.profiles FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_global_admin = true)
-);
+ON public.profiles FOR UPDATE USING (public.is_current_user_global_admin());
 
 -- ------------------------------------------
 -- CONTRATOS (contracts)
@@ -86,39 +110,30 @@ ON public.profiles FOR UPDATE USING (
 -- 1. Empresas aprobadas pueden crear contratos
 CREATE POLICY "Approved companies can insert contracts" 
 ON public.contracts FOR INSERT WITH CHECK (
-    owner_id = auth.uid() AND 
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_approved = true)
+    owner_id = auth.uid() AND public.is_current_user_approved_company()
 );
 
 -- 2. Empresas aprobadas pueden ver sus propios contratos
 CREATE POLICY "Companies can view own contracts" 
 ON public.contracts FOR SELECT USING (
-    owner_id = auth.uid() AND 
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_approved = true)
+    owner_id = auth.uid() AND public.is_current_user_approved_company()
 );
 
 -- 3. Empresas aprobadas pueden actualizar sus contratos (ej. cancelar)
 CREATE POLICY "Companies can update own contracts" 
 ON public.contracts FOR UPDATE USING (
-    owner_id = auth.uid() AND 
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_approved = true)
+    owner_id = auth.uid() AND public.is_current_user_approved_company()
 );
 
 -- 4. Admin Global puede ver todos los contratos
 CREATE POLICY "Global admin can view all contracts" 
-ON public.contracts FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_global_admin = true)
-);
+ON public.contracts FOR SELECT USING (public.is_current_user_global_admin());
 
--- 5. Portal de Consulta: Lectura de contratos por ID. La seguridad estricta
---    se maneja a nivel de aplicación (FrontEnd/RPC) requiriendo validación contra contract_signers.
+-- 5. Portal de Consulta: Lectura de contratos por ID. 
 CREATE POLICY "Public read access to specific contracts" 
 ON public.contracts FOR SELECT USING (true);
--- Nota: También podríamos restringir la lectura pública si lo preferimos, pero usar "true" para SELECT 
--- facilita que la app cargue los datos si se tiene el ID (UUID), el cual es difícil de adivinar. 
 
--- Opcional (si queremos restringir que solo se actualice status publicamente por el firmante):
--- Dado que un firmante anónimo (no logueado) debe poder firmar/rechazar, necesitamos permitir actualizaciones
+-- 6. Portal de Consulta: Permitir actualizaciones para firmantes anónimos
 CREATE POLICY "Public update access for signatures" 
 ON public.contracts FOR UPDATE USING (true); 
 
@@ -128,8 +143,8 @@ ON public.contracts FOR UPDATE USING (true);
 -- 1. Empresas aprobadas pueden insertar firmantes para sus contratos
 CREATE POLICY "Companies can insert signers for their contracts" 
 ON public.contract_signers FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM public.contracts WHERE id = contract_id AND owner_id = auth.uid()) AND
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_approved = true)
+    EXISTS (SELECT 1 FROM public.contracts WHERE id = contract_id AND owner_id = auth.uid()) 
+    AND public.is_current_user_approved_company()
 );
 
 -- 2. Empresas aprobadas pueden ver los firmantes de sus contratos
@@ -146,7 +161,3 @@ ON public.contract_signers FOR SELECT USING (true);
 CREATE POLICY "Public update access to sign" 
 ON public.contract_signers FOR UPDATE USING (true);
 
--- ------------------------------------------
--- TRIGGER PARA SINCRONIZAR EMAIL DESDE AUTH (Opcional, pero recomendado)
--- ------------------------------------------
--- (Asumimos que el front enviará el email en el insert del profile, no requiere trigger estricto en este caso simple)

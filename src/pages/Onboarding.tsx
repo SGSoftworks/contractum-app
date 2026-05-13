@@ -32,9 +32,7 @@ export function Onboarding() {
       const { error: insertError } = await supabase.from('profiles').insert({
         id: user.id,
         full_name: fullName,
-        national_id: nationalId,
-        role: 'recipient' // By default, new self-registered users are recipients (signers)
-        // Company admins will be manually set up or invited via other flows
+        national_id: nationalId
       });
 
       if (insertError) {

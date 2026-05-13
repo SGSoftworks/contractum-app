@@ -32,7 +32,8 @@ export function Onboarding() {
       const { error: insertError } = await supabase.from('profiles').insert({
         id: user.id,
         full_name: fullName,
-        national_id: nationalId
+        national_id: nationalId,
+        email: user.email
       });
 
       if (insertError) {

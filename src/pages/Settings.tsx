@@ -122,7 +122,9 @@ export function Settings() {
             </div>
             <div>
               <span className="block text-slate-500 mb-1">Rol de Acceso</span>
-              <strong className="text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md inline-block">{profile?.role || 'Desconocido'}</strong>
+              <strong className="text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md inline-block">
+                {profile?.is_global_admin ? 'Admin Global' : (profile?.is_approved ? 'Empresa Aprobada' : 'Pendiente')}
+              </strong>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, Eye, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle } from 'lucide-react';
+import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';

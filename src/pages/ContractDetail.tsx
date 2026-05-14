@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, ShieldCheck, PenTool, X, Download, UserCircle } from 'lucide-react';
-import * as SignatureCanvasModule from 'react-signature-canvas';
-// @ts-ignore
-const SignatureCanvas: any = SignatureCanvasModule.default?.default || SignatureCanvasModule.default || SignatureCanvasModule;
+import SignaturePad from 'signature_pad';
 import { format } from 'date-fns';
 import * as jspdf from 'jspdf';
 // @ts-ignore
@@ -34,8 +32,45 @@ export function ContractDetail() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [step, setStep] = useState<'confirm' | 'sign'>('confirm');
   
-  const sigCanvas = useRef<any>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const signaturePadRef = useRef<SignaturePad | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const documentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isModalOpen && step === 'sign' && canvasRef.current && !signaturePadRef.current) {
+      const canvas = canvasRef.current;
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      
+      const resizeCanvas = () => {
+        const container = containerRef.current;
+        if (container && canvas) {
+          const width = container.offsetWidth;
+          const height = 192;
+          canvas.width = width * ratio;
+          canvas.height = height * ratio;
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
+          canvas.getContext("2d")?.scale(ratio, ratio);
+          signaturePadRef.current?.clear();
+        }
+      };
+
+      window.addEventListener("resize", resizeCanvas);
+      setTimeout(resizeCanvas, 100); // Wait for modal animation
+
+      signaturePadRef.current = new SignaturePad(canvas, {
+        backgroundColor: 'rgb(248, 250, 252)'
+      });
+      
+      return () => window.removeEventListener("resize", resizeCanvas);
+    }
+    
+    // Clear ref when step changes or modal closes
+    if (!isModalOpen || step !== 'sign') {
+      signaturePadRef.current = null;
+    }
+  }, [isModalOpen, step]);
 
   const fetchContractData = async () => {
     try {
@@ -92,13 +127,13 @@ export function ContractDetail() {
   };
 
   const handleSign = async () => {
-    if (sigCanvas.current?.isEmpty()) {
-      alert('Por favor, dibuje su firma antes de confirmar.');
+    if (!signaturePadRef.current || signaturePadRef.current.isEmpty()) {
+      alert('Por favor, ingresa tu firma.');
       return;
     }
     
     try {
-      const signatureData = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
+      const signatureData = signaturePadRef.current.toDataURL('image/png');
       
       // Update signer
       const { error: signerError } = await supabase
@@ -154,7 +189,7 @@ export function ContractDetail() {
   };
 
   const handleClear = () => {
-    sigCanvas.current?.clear();
+    signaturePadRef.current?.clear();
   };
 
   const handleGeneratePDF = async () => {
@@ -368,8 +403,11 @@ export function ContractDetail() {
                 <p className="text-sm text-slate-600 mb-4 font-medium text-center">
                   Al dibujar su firma, usted acepta todos los términos y condiciones estipulados.
                 </p>
-                <div className="border-2 border-dashed border-slate-300 rounded-xl overflow-hidden bg-slate-50 relative group">
-                  <SignatureCanvas ref={sigCanvas} penColor="#0f172a" canvasProps={{className: 'w-full h-[200px] cursor-crosshair'}} />
+                <div ref={containerRef} className="border-2 border-dashed border-slate-300 rounded-xl overflow-hidden bg-slate-50 relative group h-48">
+                  <canvas
+                    ref={canvasRef}
+                    className="w-full h-full cursor-crosshair touch-none"
+                  />
                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={handleClear} className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-slate-500 hover:text-slate-700 font-medium shadow-sm">Limpiar</button>
                   </div>

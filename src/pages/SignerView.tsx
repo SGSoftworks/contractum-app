@@ -1,10 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { FileText, Shield, CheckCircle, XCircle } from 'lucide-react';
-import * as SignatureCanvasModule from 'react-signature-canvas';
-// @ts-ignore
-const SignatureCanvas: any = SignatureCanvasModule.default?.default || SignatureCanvasModule.default || SignatureCanvasModule;
+import SignaturePad from 'signature_pad';
 
 export function SignerView() {
   const { id } = useParams<{ id: string }>();
@@ -18,8 +16,41 @@ export function SignerView() {
   const [contract, setContract] = useState<any>(null);
   const [signerId, setSignerId] = useState<string | null>(null);
   const [hasSigned, setHasSigned] = useState(false);
+  
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const signaturePadRef = useRef<SignaturePad | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const sigCanvas = useRef<any>(null);
+  useEffect(() => {
+    if (isAuthenticated && canvasRef.current && !signaturePadRef.current) {
+      const canvas = canvasRef.current;
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      
+      // Ajustar resolución del canvas
+      const resizeCanvas = () => {
+        const container = containerRef.current;
+        if (container && canvas) {
+          const width = container.offsetWidth;
+          const height = 192; // fixed height 48 * 4
+          canvas.width = width * ratio;
+          canvas.height = height * ratio;
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
+          canvas.getContext("2d")?.scale(ratio, ratio);
+          signaturePadRef.current?.clear();
+        }
+      };
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      signaturePadRef.current = new SignaturePad(canvas, {
+        backgroundColor: 'rgb(248, 250, 252)'
+      });
+      
+      return () => window.removeEventListener("resize", resizeCanvas);
+    }
+  }, [isAuthenticated]);
 
   const handleValidate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,11 +100,11 @@ export function SignerView() {
   };
 
   const clearSignature = () => {
-    sigCanvas.current?.clear();
+    signaturePadRef.current?.clear();
   };
 
   const handleSign = async () => {
-    if (sigCanvas.current?.isEmpty()) {
+    if (!signaturePadRef.current || signaturePadRef.current.isEmpty()) {
       setError('Por favor, ingresa tu firma.');
       return;
     }
@@ -82,7 +113,7 @@ export function SignerView() {
     setError(null);
 
     try {
-      const signatureData = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
+      const signatureData = signaturePadRef.current.toDataURL('image/png');
 
       // Actualizar el firmante
       const { error: updateSignerError } = await supabase
@@ -231,13 +262,10 @@ export function SignerView() {
               </div>
             )}
             
-            <div className="border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 mb-4 overflow-hidden">
-              <SignatureCanvas
-                ref={sigCanvas}
-                canvasProps={{
-                  className: 'w-full h-48 cursor-crosshair'
-                }}
-                backgroundColor="rgb(248 250 252)" // tailwind slate-50
+            <div ref={containerRef} className="border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 mb-4 overflow-hidden h-48">
+              <canvas
+                ref={canvasRef}
+                className="w-full h-full cursor-crosshair touch-none"
               />
             </div>
             

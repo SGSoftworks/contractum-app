@@ -13,6 +13,7 @@ interface ContractSigner {
   role: string;
   status: 'pending' | 'signed' | 'rejected';
   has_signed: boolean;
+  rejection_reason?: string;
   signed_at?: string;
   signature_data?: string;
 }
@@ -375,7 +376,9 @@ export function ContractsList() {
                               <p className="text-xs text-slate-500 mt-1">
                                 {signer.has_signed 
                                   ? `Firma validada el ${format(new Date(signer.signed_at!), 'dd/MM/yyyy HH:mm')}`
-                                  : signer.status === 'rejected' ? 'Rechazó la vinculación legal' : 'Pendiente de confirmación de identidad'}
+                                  : signer.status === 'rejected' 
+                                    ? `Rechazó: "${signer.rejection_reason || 'Sin motivo especificado'}"` 
+                                    : 'Pendiente de confirmación de identidad'}
                               </p>
                               
                               {signer.has_signed && signerLog && (

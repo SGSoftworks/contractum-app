@@ -23,6 +23,9 @@ export function SignerView() {
   const [contract, setContract] = useState<any>(null);
   const [signerId, setSignerId] = useState<string | null>(null);
   const [hasSigned, setHasSigned] = useState(false);
+  const [isRejected, setIsRejected] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [showRejectModal, setShowRejectModal] = useState(false);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const signaturePadRef = useRef<SignaturePad | null>(null);
@@ -180,19 +183,46 @@ export function SignerView() {
   };
 
   const handleReject = async () => {
-    if (!window.confirm('¿Estás seguro de que deseas rechazar este contrato?')) return;
+    if (!rejectionReason.trim()) {
+      alert('Por favor, indica el motivo del rechazo.');
+      return;
+    }
     
     setIsLoading(true);
     try {
-      const { error: updateContractError } = await supabase
-        .from('contracts')
-        .update({ status: 'rejected' })
-        .eq('id', id);
+      const { error: updateError } = await supabase
+        .from('contract_signers')
+        .update({ 
+          status: 'rejected', 
+          rejection_reason: rejectionReason,
+          signed_at: new Date().toISOString() 
+        })
+        .eq('id', signerId);
 
-      if (updateContractError) throw updateContractError;
+      if (updateError) throw updateError;
+
+      // Actualizar estado del contrato a rechazado
+      await supabase.from('contracts').update({ status: 'rejected' }).eq('id', id);
+      
+      // Registrar en el Log
+      try {
+        const hash = await generateHash(`${id}-${signerId}-rejected-${new Date().getTime()}`);
+        await supabase.from('contract_logs').insert({
+          contract_id: id,
+          action: 'Contrato Rechazado',
+          hash: hash,
+          details: { 
+            signer_name: contract.signers?.find((s:any) => s.id === signerId)?.signer_name,
+            reason: rejectionReason 
+          }
+        });
+      } catch (e) {}
+
+      setIsRejected(true);
+      setShowRejectModal(false);
       setContract({ ...contract, status: 'rejected' });
     } catch (err: any) {
-      setError('Error al rechazar: ' + err.message);
+      alert('Error al rechazar: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -315,7 +345,7 @@ export function SignerView() {
               
               <div className="flex gap-3">
                 <button
-                  onClick={handleReject}
+                  onClick={() => setShowRejectModal(true)}
                   disabled={isLoading}
                   className="px-6 py-2.5 bg-red-50 text-red-600 font-medium rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
@@ -335,29 +365,41 @@ export function SignerView() {
           </div>
         )}
 
-        {(hasSigned || contract.status === 'signed') && (
+        {(hasSigned || isRejected || contract.status === 'signed' || contract.status === 'rejected') && (
           <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-xl shadow-slate-100 animate-in zoom-in duration-300">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="h-10 w-10 text-green-600" />
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+              isRejected || contract.status === 'rejected' ? 'bg-red-100' : 'bg-green-100'
+            }`}>
+              {isRejected || contract.status === 'rejected' ? <XCircle className="h-10 w-10 text-red-600" /> : <CheckCircle className="h-10 w-10 text-green-600" />}
             </div>
-            <h3 className="text-xl font-bold text-slate-900">¡Firma Registrada!</h3>
+            <h3 className="text-xl font-bold text-slate-900">
+              {isRejected || contract.status === 'rejected' ? 'Documento Rechazado' : '¡Firma Registrada!'}
+            </h3>
             <p className="text-slate-500 mt-2 max-w-xs mx-auto">
-              Tu firma ha sido vinculada criptográficamente a este documento.
+              {isRejected || contract.status === 'rejected' 
+                ? 'Has marcado este documento como rechazado.' 
+                : 'Tu firma ha sido vinculada criptográficamente a este documento.'}
             </p>
 
             <div className="mt-8 pt-6 border-t border-slate-100">
-              {contract.status === 'signed' ? (
+              {(contract.status === 'signed' || contract.status === 'rejected') ? (
                 <div className="space-y-4">
-                   <p className="text-sm font-medium text-slate-700">El contrato ha sido legalizado por todas las partes.</p>
+                   <p className="text-sm font-medium text-slate-700">
+                     El proceso ha finalizado ({contract.status === 'rejected' ? 'Rechazado' : 'Legalizado'}).
+                   </p>
                    {contract.pdf_url ? (
                       <a 
                         href={contract.pdf_url} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                        className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg ${
+                          contract.status === 'rejected' 
+                          ? 'bg-slate-700 text-white hover:bg-slate-800 shadow-slate-200' 
+                          : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'
+                        }`}
                       >
                         <Download className="h-5 w-5" />
-                        Descargar Contrato Legalizado
+                        Descargar {contract.status === 'rejected' ? 'Evidencia de Rechazo' : 'Contrato Legalizado'}
                       </a>
                    ) : (
                      <p className="text-sm text-slate-400 italic">Generando copia oficial, por favor recarga en unos segundos...</p>
@@ -366,11 +408,48 @@ export function SignerView() {
               ) : (
                 <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
                   <p className="text-sm text-amber-800 font-medium leading-relaxed">
-                    Aún faltan otras partes por firmar. <br/> 
-                    <span className="font-bold">Vuelve a consultar este enlace más tarde</span> para descargar tu copia legalizada una vez el proceso termine.
+                    El proceso sigue en curso. <br/> 
+                    <span className="font-bold">Vuelve a consultar este enlace más tarde</span> para descargar tu copia una vez el proceso termine.
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Motivo de Rechazo */}
+        {showRejectModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <XCircle className="h-5 w-5 text-red-500" /> Motivo del Rechazo
+              </h3>
+              <p className="text-sm text-slate-500 mt-2">
+                Por favor, explica brevemente por qué rechazas este contrato. Esta información será visible para todas las partes.
+              </p>
+              
+              <textarea 
+                className="w-full mt-4 rounded-xl border border-slate-200 p-4 text-sm min-h-[120px] focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                placeholder="Ej. El valor de la cláusula 5 no es el acordado..."
+                value={rejectionReason}
+                onChange={e => setRejectionReason(e.target.value)}
+              />
+              
+              <div className="flex gap-3 mt-6">
+                <button 
+                  onClick={() => setShowRejectModal(false)}
+                  className="flex-1 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleReject}
+                  disabled={isLoading}
+                  className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-lg shadow-red-100 disabled:opacity-50"
+                >
+                  Confirmar Rechazo
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -49,6 +49,7 @@ CREATE TABLE public.contract_signers (
     role TEXT,
     status TEXT CHECK (status IN ('pending', 'signed', 'rejected')) DEFAULT 'pending',
     has_signed BOOLEAN DEFAULT FALSE,
+    rejection_reason TEXT,
     signed_at TIMESTAMPTZ,
     signature_data TEXT, -- Base64 de la firma o URL al storage
     created_at TIMESTAMPTZ DEFAULT NOW(),

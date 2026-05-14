@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, ShieldCheck, PenTool, X, Download, UserCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, ShieldCheck, PenTool, X, Download, UserCircle, XCircle } from 'lucide-react';
 import SignaturePad from 'signature_pad';
 import { format } from 'date-fns';
 import * as jspdf from 'jspdf';
@@ -311,6 +311,13 @@ export function ContractDetail() {
                         <p className="text-xs text-slate-500 mt-1">CC: {signer.signer_national_id} • {signer.role}</p>
                         <p className="text-[10px] text-slate-400 mt-1">{signer.signed_at ? format(new Date(signer.signed_at), 'dd/MM/yyyy HH:mm') : ''}</p>
                       </>
+                    ) : signer.status === 'rejected' ? (
+                      <div className="text-center p-4">
+                        <XCircle className="h-10 w-10 text-red-500 mx-auto mb-2" />
+                        <p className="text-sm font-bold text-red-700">VINCULACIÓN RECHAZADA</p>
+                        <p className="text-xs text-slate-600 mt-1 font-medium italic">"{signer.rejection_reason}"</p>
+                        <p className="text-[10px] text-slate-400 mt-2">Por: {signer.signer_name} • {signer.role}</p>
+                      </div>
                     ) : (
                       <>
                         <div className="text-slate-300 mb-2"><UserCircle className="h-8 w-8" /></div>

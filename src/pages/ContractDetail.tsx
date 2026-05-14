@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, ShieldCheck, PenTool, X, Download, UserCircle } from 'lucide-react';
-import SignatureCanvasComponent from 'react-signature-canvas';
-const SignatureCanvas = (SignatureCanvasComponent as any).default || SignatureCanvasComponent;
+import { default as SignatureCanvas } from 'react-signature-canvas';
 import { format } from 'date-fns';
-import { jsPDF } from 'jspdf';
+import * as jspdf from 'jspdf';
+// @ts-ignore
+const jsPDF = jspdf.jsPDF || jspdf.default || jspdf;
 import html2canvas from 'html2canvas';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -94,7 +95,7 @@ export function ContractDetail() {
     }
     
     try {
-      const signatureData = sigCanvas.current?.toDataURL('image/png');
+      const signatureData = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
       
       // Update signer
       const { error: signerError } = await supabase

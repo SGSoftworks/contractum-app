@@ -79,6 +79,32 @@ export function Users() {
     }
   };
 
+  if (loading && users.length === 0) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-primary-600 rounded-full animate-spin"></div>
+        <p className="text-slate-500 font-medium">Cargando directorio...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="p-3 bg-red-50 text-red-600 rounded-full">
+          <RefreshCcw className="h-8 w-8" />
+        </div>
+        <p className="text-red-600 font-bold">{error}</p>
+        <button 
+          onClick={() => fetchData()}
+          className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
   if (!isAdmin) {
     return <div className="p-8 text-center text-slate-500">No tienes permisos para ver este módulo.</div>;
   }

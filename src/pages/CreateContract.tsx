@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { Save, Plus, Trash2, CheckCircle, Copy, ArrowRight } from 'lucide-react';
+import { Save, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 
@@ -24,7 +24,6 @@ export function CreateContract() {
     { id: '1', name: '', email: '', nationalId: '' }
   ]);
 
-  const [successData, setSuccessData] = useState<{ id: string, signers: Signer[] } | null>(null);
 
   const editor = useEditor({
     extensions: [StarterKit],

@@ -58,7 +58,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialize: () => {
     if (authListenerAdded) return;
     authListenerAdded = true;
-    let isInitialized = false;
 
     // Timeout de seguridad de 5 segundos para evitar bloqueos infinitos (F5/Reload)
     const timeoutId = setTimeout(() => {
@@ -76,7 +75,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           await get().fetchProfile(session.user.id);
         }
         set({ session, user: session?.user ?? null, isLoading: false });
-        isInitialized = true;
         clearTimeout(timeoutId);
       } catch (error) {
         console.error('Error during auth initialization:', error);

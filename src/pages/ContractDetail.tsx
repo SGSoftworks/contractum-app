@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, ShieldCheck, PenTool, X, Download, UserCircle } from 'lucide-react';
-import { default as SignatureCanvas } from 'react-signature-canvas';
+import * as SignatureCanvasModule from 'react-signature-canvas';
+// @ts-ignore
+const SignatureCanvas: any = SignatureCanvasModule.default?.default || SignatureCanvasModule.default || SignatureCanvasModule;
 import { format } from 'date-fns';
 import * as jspdf from 'jspdf';
 // @ts-ignore

@@ -67,67 +67,43 @@ export function SignerView() {
     setIsLoading(true);
     setError(null);
 
-    // Timeout de seguridad: 8 segundos máximo para la validación
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('La conexión tardó demasiado. Verifica tu internet e intenta de nuevo.')), 8000)
-    );
-
     try {
-      // Validar en la tabla de firmantes con timeout
-      const signerQuery = supabase
+      // Validar en la tabla de firmantes
+      const { data: signers, error: signerError } = await supabase
         .from('contract_signers')
         .select('*')
         .eq('contract_id', id)
-        .eq('signer_national_id', nationalId.trim())
-        .eq('signer_email', email.trim().toLowerCase());
+        .eq('signer_national_id', nationalId)
+        .eq('signer_email', email);
 
-      const { data: signers, error: signerError } = await Promise.race([
-        signerQuery,
-        timeoutPromise
-      ]) as any;
-
-      if (signerError) {
-        console.error('[SignerView] Signer query error:', signerError);
-        throw new Error(`Error de base de datos: ${signerError.message}`);
-      }
+      if (signerError) throw signerError;
 
       if (!signers || signers.length === 0) {
-        setError('Credenciales inválidas. Verifica tu cédula y correo electrónico.');
+        setError('Credenciales inválidas. Verifica tu cédula y correo.');
+        setIsLoading(false);
         return;
       }
 
       const currentSigner = signers[0];
       setSignerId(currentSigner.id);
-
-      if (currentSigner.has_signed || currentSigner.status === 'signed') {
+      
+      if (currentSigner.has_signed) {
         setHasSigned(true);
       }
-      if (currentSigner.status === 'rejected') {
-        setIsRejected(true);
-      }
 
-      // Obtener el contrato con timeout
-      const contractQuery = supabase
+      // Obtener el contrato
+      const { data: contractData, error: contractError } = await supabase
         .from('contracts')
         .select('*')
         .eq('id', id)
         .single();
 
-      const { data: contractData, error: contractError } = await Promise.race([
-        contractQuery,
-        timeoutPromise
-      ]) as any;
-
-      if (contractError) {
-        console.error('[SignerView] Contract query error:', contractError);
-        throw new Error(`No se pudo cargar el contrato: ${contractError.message}`);
-      }
+      if (contractError) throw contractError;
 
       setContract(contractData);
       setIsAuthenticated(true);
     } catch (err: any) {
-      console.error('[SignerView] Validation error:', err);
-      setError(err.message || 'Error al validar credenciales. Intenta de nuevo.');
+      setError(err.message || 'Error al validar credenciales');
     } finally {
       setIsLoading(false);
     }

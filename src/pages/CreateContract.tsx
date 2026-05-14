@@ -115,17 +115,35 @@ export function CreateContract() {
 
       if (signersError) throw signersError;
 
-      // 3. Registrar Log Génesis
+      // 3. Registrar Log Génesis y guardar hash en el contrato
       try {
-        const genesisHash = await generateHash(`${contractData.id}-genesis-${new Date().getTime()}`);
+        const genesisHash = await generateHash(
+          `${contractData.id}-genesis-${profile.id}-${new Date().getTime()}`
+        );
+
+        // Guardar el genesis_hash en el contrato para referencia rápida
+        await supabase
+          .from('contracts')
+          .update({ genesis_hash: genesisHash })
+          .eq('id', contractData.id);
+
+        // Insertar el primer bloque en la cadena de auditoría
         await supabase.from('contract_logs').insert({
           contract_id: contractData.id,
-          action: 'Contrato Generado',
+          action: 'genesis',
+          actor: profile.full_name || profile.email,
           hash: genesisHash,
-          details: { origin: 'Web App', owner: profile.email }
+          previous_hash: null,
+          details: {
+            origin: 'Web App',
+            owner_id: profile.id,
+            owner_email: profile.email,
+            signers_count: validSigners.length,
+            jurisdiction: formData.jurisdiction
+          }
         });
       } catch (logErr) {
-        console.warn("No se pudo guardar el log génesis (posible tabla faltante):", logErr);
+        console.warn('No se pudo guardar el log génesis:', logErr);
       }
 
       // Redirigir directamente a la lista de contratos

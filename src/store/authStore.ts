@@ -23,8 +23,10 @@ interface AuthState {
   signOut: () => Promise<void>;
   initialize: () => void;
   fetchProfile: (userId: string) => Promise<void>;
+  resetState: () => void;
 }
 
+// Bandera para evitar doble registro del listener de auth
 let authListenerAdded = false;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -32,64 +34,80 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   profile: null,
   isLoading: true,
+
   setUser: (user) => set({ user }),
   setSession: (session) => set({ session }),
   setProfile: (profile) => set({ profile }),
-  
+
+  // Limpia todos los estados a un estado limpio sin sesión
+  resetState: () => {
+    set({ user: null, session: null, profile: null, isLoading: false });
+  },
+
   signOut: async () => {
-    await supabase.auth.signOut();
-    set({ user: null, session: null, profile: null });
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Error during sign out:', err);
+    } finally {
+      set({ user: null, session: null, profile: null, isLoading: false });
+    }
   },
 
   fetchProfile: async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-      
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching profile:', error);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
+      }
+
+      set({ profile: data || null });
+    } catch (err) {
+      console.error('Unexpected error fetching profile:', err);
+      set({ profile: null });
     }
-    
-    set({ profile: data || null });
   },
 
   initialize: () => {
     if (authListenerAdded) return;
     authListenerAdded = true;
 
-    // Timeout de seguridad de 5 segundos para evitar bloqueos infinitos (F5/Reload)
+    // Timeout de seguridad: si en 2 segundos no hay respuesta, limpiamos y mostramos login
+    const TIMEOUT_MS = 2000;
     const timeoutId = setTimeout(() => {
       if (get().isLoading) {
-        console.warn('Auth initialization timed out. Forcing cleanup of zombie state.');
-        set({ isLoading: false, user: null, session: null, profile: null });
-        supabase.auth.signOut().catch(console.error);
+        console.warn('[AuthStore] Timeout: forcing cleanup of zombie state after 2s.');
+        get().resetState();
+        supabase.auth.signOut().catch(() => {});
       }
-    }, 5000);
+    }, TIMEOUT_MS);
 
     const initAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
-        
-        // Si hay un error al obtener la sesión (ej. token corrupto o expirado), forzamos limpieza
+
+        // Token corrupto o expirado → forzamos limpieza completa
         if (error) {
-          console.error('Session error, forcing signout:', error);
-          await supabase.auth.signOut();
-          set({ session: null, user: null, profile: null, isLoading: false });
-          clearTimeout(timeoutId);
+          console.error('[AuthStore] Session error, forcing signout:', error);
+          await supabase.auth.signOut().catch(() => {});
+          get().resetState();
           return;
         }
 
         if (session?.user) {
           await get().fetchProfile(session.user.id);
         }
+
         set({ session, user: session?.user ?? null, isLoading: false });
-        clearTimeout(timeoutId);
-      } catch (error) {
-        console.error('Error during auth initialization:', error);
-        set({ isLoading: false, user: null, session: null, profile: null });
-        supabase.auth.signOut().catch(console.error);
+      } catch (err) {
+        console.error('[AuthStore] Unexpected error during init:', err);
+        get().resetState();
+      } finally {
         clearTimeout(timeoutId);
       }
     };
@@ -97,20 +115,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     initAuth();
 
     supabase.auth.onAuthStateChange(async (event, session) => {
+      // Ignoramos eventos que solo son ruido de red/foco de pestaña
+      if (event === 'INITIAL_SESSION') {
+        // Ya manejado por initAuth — no hacer nada
+        return;
+      }
+
       if (event === 'SIGNED_OUT') {
         set({ session: null, user: null, profile: null, isLoading: false });
         return;
       }
 
       if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        // Solo actualizamos tokens, sin re-lanzar carga de perfil
         set({ session, user: session?.user ?? null });
         return;
       }
 
-      // Ignoramos INITIAL_SESSION ya que initAuth se encarga de la hidratación inicial.
-      // Solo mostramos carga para un login manual (SIGNED_IN).
       if (event === 'SIGNED_IN') {
-        if (!get().user) {
+        // Solo activamos loading si no hay usuario previo (login manual, no F5)
+        const alreadyHasUser = !!get().user;
+        if (!alreadyHasUser) {
           set({ isLoading: true });
         }
         try {
@@ -124,5 +149,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
     });
-  }
+  },
 }));

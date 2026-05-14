@@ -13,12 +13,12 @@ export function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
-  const { user } = useAuthStore();
+  const { user, resetState } = useAuthStore();
 
-  // Reset al Montar: Limpiamos estados zombies del authStore si los hay
+  // Reset al Montar: Limpiamos estados zombies del authStore para evitar pantallas de carga congeladas
   useEffect(() => {
-    useAuthStore.setState({ isLoading: false });
-  }, []);
+    resetState();
+  }, [resetState]);
 
   if (user) {
     return <Navigate to="/app" replace />;

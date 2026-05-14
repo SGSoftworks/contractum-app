@@ -138,20 +138,44 @@ export function SignerView() {
 
       if (updateSignerError) throw updateSignerError;
 
-      // 1.5. Registrar en el Log de Auditoría (Blockchain)
+      // Generar hash de firma y guardarlo en el registro del firmante
+      const signedAt = new Date().toISOString();
+      const signatureHash = await generateHash(`${id}-${signerId}-${nationalId}-${signedAt}`);
+      
+      await supabase
+        .from('contract_signers')
+        .update({ signature_hash: signatureHash })
+        .eq('id', signerId);
+
+      // Registrar en el Log de Auditoría con cadena de hashes
       try {
-        const hash = await generateHash(`${id}-${signerId}-${new Date().getTime()}`);
+        // Obtener el hash del bloque anterior para encadenar
+        const { data: lastLog } = await supabase
+          .from('contract_logs')
+          .select('hash')
+          .eq('contract_id', id)
+          .order('action_timestamp', { ascending: false })
+          .limit(1)
+          .single();
+
+        const previousHash = lastLog?.hash || 'GENESIS';
+        const blockHash = await generateHash(`${previousHash}-${signerId}-${Date.now()}`);
+
         await supabase.from('contract_logs').insert({
           contract_id: id,
-          action: `Firma de ${signerId}`,
-          hash: hash,
-          details: { 
-            signer_name: contract.signers?.find((s:any) => s.id === signerId)?.signer_name,
-            action_type: 'signature' 
+          action: 'signature',
+          actor: contract.signers?.find((s: any) => s.id === signerId)?.signer_name || email,
+          hash: blockHash,
+          previous_hash: previousHash,
+          details: {
+            signer_name: contract.signers?.find((s: any) => s.id === signerId)?.signer_name,
+            signer_national_id: nationalId,
+            action_type: 'signature',
+            signature_hash: signatureHash
           }
         });
       } catch (logErr) {
-        console.warn("No se pudo guardar el log de auditoría (posible tabla faltante):", logErr);
+        console.warn('No se pudo guardar el log de auditoría:', logErr);
       }
 
       // Verificar si todos los firmantes han firmado
@@ -190,12 +214,14 @@ export function SignerView() {
     
     setIsLoading(true);
     try {
+      const rejectedAt = new Date().toISOString();
       const { error: updateError } = await supabase
         .from('contract_signers')
         .update({ 
           status: 'rejected', 
           rejection_reason: rejectionReason,
-          signed_at: new Date().toISOString() 
+          rejected_at: rejectedAt,
+          signed_at: rejectedAt  // Para ordenamiento cronológico
         })
         .eq('id', signerId);
 
@@ -204,19 +230,34 @@ export function SignerView() {
       // Actualizar estado del contrato a rechazado
       await supabase.from('contracts').update({ status: 'rejected' }).eq('id', id);
       
-      // Registrar en el Log
+      // Registrar en el Log con encadenamiento de hashes
       try {
-        const hash = await generateHash(`${id}-${signerId}-rejected-${new Date().getTime()}`);
+        const { data: lastLog } = await supabase
+          .from('contract_logs')
+          .select('hash')
+          .eq('contract_id', id)
+          .order('action_timestamp', { ascending: false })
+          .limit(1)
+          .single();
+
+        const previousHash = lastLog?.hash || 'GENESIS';
+        const blockHash = await generateHash(`${previousHash}-${signerId}-rejected-${Date.now()}`);
+
         await supabase.from('contract_logs').insert({
           contract_id: id,
-          action: 'Contrato Rechazado',
-          hash: hash,
+          action: 'rejection',
+          actor: contract.signers?.find((s: any) => s.id === signerId)?.signer_name || email,
+          hash: blockHash,
+          previous_hash: previousHash,
           details: { 
-            signer_name: contract.signers?.find((s:any) => s.id === signerId)?.signer_name,
-            reason: rejectionReason 
+            signer_national_id: nationalId,
+            reason: rejectionReason,
+            rejected_at: rejectedAt
           }
         });
-      } catch (e) {}
+      } catch (e) {
+        console.warn('No se pudo registrar el log de rechazo:', e);
+      }
 
       setIsRejected(true);
       setShowRejectModal(false);

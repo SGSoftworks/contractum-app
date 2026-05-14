@@ -7,7 +7,7 @@ import * as jspdf from 'jspdf';
 // @ts-ignore
 // @ts-ignore
 const jsPDF: any = jspdf.jsPDF || jspdf.default || jspdf;
-import html2canvas from 'html2canvas';
+
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 
@@ -195,78 +195,165 @@ export function ContractDetail() {
   };
 
   const handleGeneratePDF = async () => {
-    if (!documentRef.current) return;
     try {
       setIsGenerating(true);
-      const element = documentRef.current;
-      const canvas = await html2canvas(element, { 
-        scale: 2, 
-        useCORS: true,
-        logging: false,
-        // Capturar TODO el contenido, incluso lo que está fuera del viewport
-        height: element.scrollHeight,
-        windowHeight: element.scrollHeight,
-        onclone: (clonedDoc) => {
-          // Remove oklch colors that break html2canvas
-          const allElements = clonedDoc.getElementsByTagName('*');
-          for (let i = 0; i < allElements.length; i++) {
-            const el = allElements[i] as HTMLElement;
-            const style = window.getComputedStyle(el);
-            if (style.color && style.color.includes('oklch')) el.style.color = '#1e293b';
-            if (style.backgroundColor && style.backgroundColor.includes('oklch')) el.style.backgroundColor = 'transparent';
-            if (style.borderColor && style.borderColor.includes('oklch')) el.style.borderColor = '#e2e8f0';
-          }
+      const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+
+      const addFooter = () => {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        const footerText = `Documento firmado electrónicamente en Contractum - ID: ${contract.id.substring(0,18)}...`;
+        doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      };
+
+      const addPageIfNeeded = (heightNeeded: number) => {
+        if (yPos + heightNeeded > pageHeight - 25) {
+          addFooter();
+          doc.addPage();
+          yPos = margin;
+        }
+      };
+
+      // --- 1. CABECERA ---
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(30);
+      const titleLines = doc.splitTextToSize(contract.title.toUpperCase(), contentWidth);
+      doc.text(titleLines, pageWidth / 2, yPos, { align: 'center' });
+      yPos += (titleLines.length * 7) + 10;
+
+      // Metadatos Legales
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`FECHA DE CREACIÓN: ${format(new Date(contract.created_at), 'dd/MM/yyyy HH:mm')}`, margin, yPos);
+      doc.text(`JURISDICCIÓN: ${contract.jurisdiction || 'COLOMBIA'}`, pageWidth - margin, yPos, { align: 'right' });
+      yPos += 5;
+      doc.text(`VIGENCIA: ${contract.validity_period || 'INDEFINIDA'}`, margin, yPos);
+      doc.text(`CONFIDENCIALIDAD: ${contract.confidentiality_level || 'ALTA'}`, pageWidth - margin, yPos, { align: 'right' });
+      yPos += 10;
+      doc.setDrawColor(200);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 10;
+
+      // --- 2. CONTENIDO ---
+      const cleanHtml = contract.content
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<\/h[1-6]>/gi, '\n\n')
+        .replace(/<li>/gi, '  • ')
+        .replace(/<\/li>/gi, '\n')
+        .replace(/<[^>]+>/g, '');
+
+      const blocks = cleanHtml.split('\n');
+      doc.setTextColor(40);
+      
+      blocks.forEach((block: string) => {
+        const text = block.trim();
+        if (!text) return;
+
+        const isHeader = text.toUpperCase() === text && text.length < 100 || text.includes('CLÁUSULA');
+        
+        if (isHeader) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(12);
+          const lines = doc.splitTextToSize(text, contentWidth);
+          addPageIfNeeded(lines.length * 6 + 5);
+          doc.text(lines, margin, yPos);
+          yPos += (lines.length * 6) + 4;
+        } else {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          const lines = doc.splitTextToSize(text, contentWidth);
+          lines.forEach((line: string) => {
+            addPageIfNeeded(6);
+            doc.text(line, margin, yPos, { align: 'justify', maxWidth: contentWidth });
+            yPos += 5;
+          });
+          yPos += 2;
         }
       });
 
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      // --- 3. FIRMAS ---
+      addPageIfNeeded(60);
+      yPos += 15;
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 10;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('ACEPTACIÓN Y FIRMAS DIGITALES', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 20;
 
-      // Partir la imagen en páginas A4
-      let yOffset = 0;
-      let page = 0;
-      while (yOffset < imgHeight) {
-        if (page > 0) pdf.addPage();
-        pdf.addImage(
-          canvas.toDataURL('image/png'),
-          'PNG',
-          0,
-          -yOffset,       // desplazar hacia arriba en cada página
-          imgWidth,
-          imgHeight
-        );
-        yOffset += pdfHeight;
-        page++;
-      }
-      
-      // Descargar copia local
-      pdf.save(`Contrato_Contractum_${contract.id.substring(0,8)}.pdf`);
-      
-      // Subir al Bucket de Supabase si no se ha subido aún
-      if (!contract.pdf_url) {
-        const pdfBlob = pdf.output('blob');
-        const fileName = `${contract.id}.pdf`;
+      const colWidth = contentWidth / 2;
+      for (let i = 0; i < signers.length; i++) {
+        const s = signers[i];
+        const isLeft = i % 2 === 0;
+        const xPos = isLeft ? margin : margin + colWidth + 5;
+        const currentYBase = yPos + (Math.floor(i / 2) * 65);
+
+        addPageIfNeeded(60);
+
+        if (s.has_signed && s.signature_data) {
+          try {
+            doc.addImage(s.signature_data, 'PNG', xPos, currentYBase, 40, 20);
+          } catch (e) {
+            doc.setFontSize(8);
+            doc.text('[Firma Digital Registrada]', xPos, currentYBase + 10);
+          }
+        } else {
+          doc.setDrawColor(230);
+          doc.rect(xPos, currentYBase, 40, 20);
+          doc.setFontSize(7);
+          doc.text('PENDIENTE', xPos + 20, currentYBase + 12, { align: 'center' });
+        }
         
-        const { error: uploadError } = await supabase.storage
-          .from('contracts')
-          .upload(fileName, pdfBlob, {
-            contentType: 'application/pdf',
-            upsert: true
-          });
-          
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(s.signer_name.toUpperCase(), xPos, currentYBase + 28);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(`CC: ${s.signer_national_id}`, xPos, currentYBase + 33);
+        doc.text(`Rol: ${s.role}`, xPos, currentYBase + 38);
+        
+        if (s.has_signed) {
+          doc.setFontSize(7);
+          doc.setTextColor(100);
+          doc.text(`Fecha: ${format(new Date(s.signed_at!), 'dd/MM/yyyy HH:mm:ss')}`, xPos, currentYBase + 43);
+          doc.setFontSize(6);
+          doc.text(`Hash: ${s.signature_hash || 'VERIFIED'}`, xPos, currentYBase + 48, { maxWidth: colWidth - 10 });
+          doc.setTextColor(40);
+        }
+      }
+
+      addFooter();
+      doc.save(`Contrato_${contract.id.substring(0,8)}.pdf`);
+
+      // Upload to bucket
+      if (!contract.pdf_url) {
+        const pdfBlob = doc.output('blob');
+        const fileName = `${contract.id}.pdf`;
+        const { error: uploadError } = await supabase.storage.from('contracts').upload(fileName, pdfBlob, { contentType: 'application/pdf', upsert: true });
         if (!uploadError) {
           const { data } = supabase.storage.from('contracts').getPublicUrl(fileName);
           await supabase.from('contracts').update({ pdf_url: data.publicUrl }).eq('id', contract.id);
-        } else {
-          console.error('Error subiendo PDF al bucket:', uploadError);
         }
       }
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      alert('Hubo un error al generar el documento.');
+    } catch (err: any) {
+      console.error(err);
+      alert('Error: ' + err.message);
     } finally {
       setIsGenerating(false);
     }

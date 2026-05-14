@@ -18,29 +18,36 @@ import { supabase } from './lib/supabase';
 import { useAuthStore } from './store/authStore';
 
 function App() {
-  const { setAuth, fetchProfile, setLoading } = useAuthStore();
+  const setAuth = useAuthStore((state) => state.setAuth);
+  const fetchProfile = useAuthStore((state) => state.fetchProfile);
+  const setLoading = useAuthStore((state) => state.setLoading);
 
   useEffect(() => {
-    // 1. Obtener sesión inicial
+    let active = true;
+
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        if (!active) return;
+
         if (session?.user) {
           await fetchProfile(session.user.id);
         }
+
         setAuth(session);
       } catch (err) {
         console.error('Auth initialization error:', err);
-        setAuth(null);
+        if (active) setAuth(null);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     initAuth();
 
-    // 2. Suscribirse a cambios de estado
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!active) return;
+
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         if (session?.user) {
           await fetchProfile(session.user.id);
@@ -52,6 +59,7 @@ function App() {
     });
 
     return () => {
+      active = false;
       subscription.unsubscribe();
     };
   }, [setAuth, fetchProfile, setLoading]);

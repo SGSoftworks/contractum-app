@@ -30,11 +30,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   profile: null,
   isLoading: true,
 
-  setAuth: (session) => set({ 
-    session, 
+  setAuth: (session) => set((state) => ({
+    session,
     user: session?.user ?? null,
-    isLoading: false 
-  }),
+    profile: session?.user?.id === state.profile?.id ? state.profile : null,
+    isLoading: false,
+  })),
   
   setProfile: (profile) => set({ profile }),
   setLoading: (isLoading) => set({ isLoading }),

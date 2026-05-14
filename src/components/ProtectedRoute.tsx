@@ -4,10 +4,28 @@ import { useAuthStore } from '@/store/authStore';
 export function ProtectedRoute() {
   const { user, profile, isLoading } = useAuthStore();
 
+  const hasStoredSession = Object.keys(localStorage).some(key => key.startsWith('sb-') && key.endsWith('-auth-token'));
+
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="text-primary-600 font-medium">Cargando Contractum...</div>
-    </div>;
+    if (!hasStoredSession) {
+      // Si está cargando pero no hay indicios de sesión en memoria, redirigir al login
+      return <Navigate to="/login" replace />;
+    }
+    
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+        <div className="text-primary-600 font-medium animate-pulse">Cargando Contractum...</div>
+        <button 
+          onClick={() => {
+            localStorage.clear();
+            window.location.reload();
+          }}
+          className="text-xs text-slate-400 hover:text-slate-600 underline"
+        >
+          ¿Tarda mucho? Limpiar caché y recargar
+        </button>
+      </div>
+    );
   }
 
   if (!user) {

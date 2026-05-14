@@ -60,13 +60,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     authListenerAdded = true;
     let isInitialized = false;
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        await get().fetchProfile(session.user.id);
+    // Timeout de seguridad de 5 segundos para evitar bloqueos infinitos (F5/Reload)
+    const timeoutId = setTimeout(() => {
+      if (get().isLoading) {
+        console.warn('Auth initialization timed out. Forcing cleanup of zombie state.');
+        set({ isLoading: false, user: null, session: null, profile: null });
+        supabase.auth.signOut().catch(console.error);
       }
-      set({ session, user: session?.user ?? null, isLoading: false });
-      isInitialized = true;
-    });
+    }, 5000);
+
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await get().fetchProfile(session.user.id);
+        }
+        set({ session, user: session?.user ?? null, isLoading: false });
+        isInitialized = true;
+        clearTimeout(timeoutId);
+      } catch (error) {
+        console.error('Error during auth initialization:', error);
+        set({ isLoading: false, user: null, session: null, profile: null });
+        clearTimeout(timeoutId);
+      }
+    };
+
+    initAuth();
 
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
@@ -74,14 +93,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // Si se refresca el token en segundo plano, solo actualizamos los datos silenciosamente
       if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         set({ session, user: session?.user ?? null });
         return;
       }
 
-      // Para SIGNED_IN, mostramos carga solo si es un login nuevo
-      if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && !isInitialized)) {
+      // Ignoramos INITIAL_SESSION ya que initAuth se encarga de la hidratación inicial.
+      // Solo mostramos carga para un login manual (SIGNED_IN).
+      if (event === 'SIGNED_IN') {
         if (!get().user) {
           set({ isLoading: true });
         }
@@ -93,7 +112,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         } finally {
           set({ session, user: session?.user ?? null, isLoading: false });
-          isInitialized = true;
         }
       }
     });

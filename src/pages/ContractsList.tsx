@@ -72,8 +72,10 @@ export function ContractsList() {
   const { profile } = useAuthStore();
 
   useEffect(() => {
-    fetchContracts();
-  }, []);
+    if (profile) {
+      fetchContracts();
+    }
+  }, [profile]);
 
   async function fetchContractHistory(contract: Contract) {
     setSelectedContract(contract);
@@ -119,11 +121,16 @@ export function ContractsList() {
     
     try {
       // RLS allows public reading by ID, so we MUST filter by owner_id in the dashboard
-      const { data, error } = await supabase
+      // However, Global Admins should see everything.
+      let query = supabase
         .from('contracts')
-        .select('*')
-        .eq('owner_id', profile?.id)
-        .order('created_at', { ascending: false });
+        .select('*');
+
+      if (!profile?.is_global_admin) {
+        query = query.eq('owner_id', profile?.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
       setContracts(data || []);

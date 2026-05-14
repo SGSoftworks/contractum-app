@@ -38,7 +38,7 @@ export function ContractsList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const { profile } = useAuthStore();
@@ -56,10 +56,8 @@ export function ContractsList() {
 
     // Timeout de seguridad
     const timeoutId = setTimeout(() => {
-      if (loading && isFirstLoad) {
-        setLoading(false);
-        setError('Tiempo de espera agotado al cargar contratos.');
-      }
+      setLoading(false);
+      setError('Tiempo de espera agotado al cargar contratos.');
     }, 10000);
     
     try {

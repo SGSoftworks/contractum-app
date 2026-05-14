@@ -12,7 +12,7 @@ export function Dashboard() {
   });
   
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,6 +24,7 @@ export function Dashboard() {
   async function fetchData() {
     // Solo mostramos el spinner bloqueante si es la primera vez (no hay datos)
     const isFirstLoad = pendingUsers.length === 0 && stats.total === 0;
+    
     if (isFirstLoad) {
       setLoading(true);
       setError(null);
@@ -31,10 +32,8 @@ export function Dashboard() {
     
     // Timeout de seguridad para la petición
     const timeoutId = setTimeout(() => {
-      if (loading) {
-        setLoading(false);
-        setError('El servidor tarda demasiado en responder. Por favor, recarga la página.');
-      }
+      setLoading(false);
+      setError('El servidor tarda demasiado en responder. Por favor, recarga la página.');
     }, 10000);
 
     try {

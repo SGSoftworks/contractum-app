@@ -70,7 +70,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        // Si hay un error al obtener la sesión (ej. token corrupto o expirado), forzamos limpieza
+        if (error) {
+          console.error('Session error, forcing signout:', error);
+          await supabase.auth.signOut();
+          set({ session: null, user: null, profile: null, isLoading: false });
+          clearTimeout(timeoutId);
+          return;
+        }
+
         if (session?.user) {
           await get().fetchProfile(session.user.id);
         }
@@ -79,6 +89,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch (error) {
         console.error('Error during auth initialization:', error);
         set({ isLoading: false, user: null, session: null, profile: null });
+        supabase.auth.signOut().catch(console.error);
         clearTimeout(timeoutId);
       }
     };

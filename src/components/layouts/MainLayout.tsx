@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, Settings, LogOut, Menu, X, Users } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 
 const navigation = [
@@ -14,29 +14,6 @@ export function MainLayout() {
   const { profile, signOut } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
-
-  // Gestión de inactividad (3 minutos)
-  useEffect(() => {
-    let timeoutId: any;
-
-    const resetTimer = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        console.warn('Inactividad detectada. Cerrando sesión por seguridad.');
-        signOut();
-      }, 3 * 60 * 1000); // 3 minutos
-    };
-
-    const events = ['mousemove', 'keydown', 'mousedown', 'scroll', 'touchstart'];
-    events.forEach(event => window.addEventListener(event, resetTimer));
-
-    resetTimer(); // Iniciar contador inicial
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      events.forEach(event => window.removeEventListener(event, resetTimer));
-    };
-  }, [signOut]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex">

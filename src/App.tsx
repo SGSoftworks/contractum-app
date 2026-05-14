@@ -55,7 +55,12 @@ function App() {
       setUser(session?.user ?? null);
 
       if (session?.user) {
+        setLoading(true);
         await fetchProfile(session.user.id);
+      }
+
+      if (mounted) {
+        setLoading(false);
       }
     });
 

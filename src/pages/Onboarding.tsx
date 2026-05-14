@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { ShieldCheck, User } from 'lucide-react';
 
 export function Onboarding() {
-  const { user, profile, fetchProfile } = useAuthStore();
+  const { user, profile, isLoading, fetchProfile } = useAuthStore();
   const navigate = useNavigate();
   
   const [fullName, setFullName] = useState('');
@@ -13,13 +13,21 @@ export function Onboarding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-primary-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
   // If they already have a profile, send them to the dashboard
   if (profile) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   const handleSaveProfile = async (e: React.FormEvent) => {

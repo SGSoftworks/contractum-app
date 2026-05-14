@@ -3,7 +3,15 @@ import { useAuthStore } from '@/store/authStore';
 import { ShieldCheck, Link as LinkIcon, FileText, ArrowRight } from 'lucide-react';
 
 export function Landing() {
-  const { user } = useAuthStore();
+  const { user, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-primary-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (user) {
     return <Navigate to="/app" replace />;

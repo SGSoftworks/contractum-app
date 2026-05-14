@@ -30,7 +30,7 @@ export function ContractDetail() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [step, setStep] = useState<'confirm' | 'sign'>('confirm');
   
-  const sigCanvas = useRef<SignatureCanvas>(null);
+  const sigCanvas = useRef<any>(null);
   const documentRef = useRef<HTMLDivElement>(null);
 
   const fetchContractData = async () => {

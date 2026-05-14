@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, User, ExternalLink, Hash, ArrowRight } from 'lucide-react';
+import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, ExternalLink, Hash, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -341,7 +341,7 @@ export function ContractsList() {
                       </div>
 
                       {/* Nodos de Firma */}
-                      {signers.map((signer, idx) => (
+                      {signers.map((signer) => (
                         <div key={signer.id} className="relative pl-10">
                           <div className={`absolute left-0 top-0 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 ${
                             signer.status === 'signed' ? 'bg-emerald-100' : 

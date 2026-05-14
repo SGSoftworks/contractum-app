@@ -292,9 +292,13 @@ export function Dashboard() {
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                                     contract.status === 'signed' ? 'bg-emerald-100 text-emerald-800' : 
                                     contract.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                                    contract.status === 'cancelled' ? 'bg-slate-200 text-slate-700' :
                                     'bg-amber-100 text-amber-800'
                                   }`}>
-                                    {contract.status === 'signed' ? 'Firmado' : contract.status === 'rejected' ? 'Rechazado' : 'Pendiente'}
+                                    {contract.status === 'signed' ? 'Firmado' : 
+                                     contract.status === 'rejected' ? 'Rechazado' : 
+                                     contract.status === 'cancelled' ? 'Cancelado' :
+                                     'Pendiente'}
                                   </span>
                                 </div>
                                 <h4 className="text-lg font-bold text-slate-900 group-hover:text-primary-700 transition-colors">{contract.title}</h4>

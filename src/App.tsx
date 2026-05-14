@@ -9,6 +9,7 @@ import { RegisterCompany } from './pages/RegisterCompany';
 import { Onboarding } from './pages/Onboarding';
 import { Dashboard } from './pages/Dashboard';
 import { ContractsList } from './pages/ContractsList';
+import { ContractDetail } from './pages/ContractDetail';
 import { CreateContract } from './pages/CreateContract';
 import { SignerView } from './pages/SignerView';
 import { Users } from './pages/Users';
@@ -39,6 +40,7 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="contracts" element={<ContractsList />} />
             <Route path="contracts/new" element={<CreateContract />} />
+            <Route path="contracts/:id" element={<ContractDetail />} />
             <Route path="users" element={<Users />} />
             <Route path="settings" element={<Settings />} />
           </Route>

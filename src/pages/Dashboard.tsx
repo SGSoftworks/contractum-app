@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { FileText, Clock, CheckCircle, Check, X, Search, Building, Mail, ShieldCheck, ExternalLink, Eye } from 'lucide-react';
@@ -296,14 +297,12 @@ export function Dashboard() {
                                 <h4 className="text-lg font-bold text-slate-900 group-hover:text-primary-700 transition-colors">{contract.title}</h4>
                                 <p className="text-sm text-slate-500 mt-1 font-medium">Creado el {new Date(contract.created_at).toLocaleDateString()}</p>
                               </div>
-                              <a 
-                                href={`/app/contracts/${contract.id}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
+                              <Link 
+                                to={`/app/contracts/${contract.id}`} 
                                 className="p-2 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
                               >
                                 <ExternalLink className="h-5 w-5" />
-                              </a>
+                              </Link>
                             </div>
                           </div>
                         ))}
@@ -409,12 +408,12 @@ export function Dashboard() {
                   <Clock className="h-3 w-3" /> {new Date(contract.created_at).toLocaleDateString()}
                 </p>
                 <div className="flex gap-2">
-                  <a 
-                    href={`/app/contracts/${contract.id}`}
+                  <Link 
+                    to={`/app/contracts/${contract.id}`}
                     className="flex-1 bg-slate-50 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-100 text-center transition-colors border border-slate-200"
                   >
                     Ver Detalles
-                  </a>
+                  </Link>
                 </div>
               </div>
             ))}

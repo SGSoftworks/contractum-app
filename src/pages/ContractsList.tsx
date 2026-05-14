@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, ExternalLink, Hash, ArrowRight } from 'lucide-react';
+import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, Hash, ArrowRight, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -324,85 +324,101 @@ export function ContractsList() {
 
                       {/* Nodo 1: Creación */}
                       <div className="relative pl-10">
-                        <div className="absolute left-0 top-0 h-8 w-8 rounded-full bg-primary-100 border-4 border-white shadow-sm flex items-center justify-center z-10">
-                          <FileText className="h-4 w-4 text-primary-600" />
+                        <div className="absolute left-0 top-0 h-8 w-8 rounded-full bg-slate-900 border-4 border-white shadow-sm flex items-center justify-center z-10">
+                          <FileText className="h-4 w-4 text-white" />
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-primary-600 uppercase tracking-wider">Origen</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Punto de Origen</p>
                           <h4 className="text-sm font-bold text-slate-900 mt-1">Contrato Generado</h4>
                           <p className="text-xs text-slate-500 mt-1">
-                            {format(new Date(selectedContract.created_at), 'dd/MM/yyyy HH:mm')}
+                            {format(new Date(selectedContract.created_at), 'dd/MM/yyyy HH:mm:ss')}
                           </p>
-                          <div className="mt-2 bg-slate-50 rounded-lg p-2 border border-slate-100 flex items-center gap-2">
-                            <Hash className="h-3 w-3 text-slate-400" />
-                            <span className="text-[10px] font-mono text-slate-500 truncate">GENESIS_BLOCK_001</span>
+                          <div className="mt-2 bg-slate-50 rounded-lg p-2 border border-slate-100 flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                               <Hash className="h-3 w-3 text-slate-400" />
+                               <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Hash de Bloque Génesis</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-primary-700 truncate">
+                               {logs.length > 0 ? logs[0].hash : 'PENDING_INITIALIZATION'}
+                            </span>
                           </div>
                         </div>
                       </div>
 
                       {/* Nodos de Firma */}
-                      {signers.map((signer) => (
-                        <div key={signer.id} className="relative pl-10">
-                          <div className={`absolute left-0 top-0 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 ${
-                            signer.status === 'signed' ? 'bg-emerald-100' : 
-                            signer.status === 'rejected' ? 'bg-red-100' : 'bg-amber-100'
-                          }`}>
-                            {signer.status === 'signed' ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : 
-                             signer.status === 'rejected' ? <XCircle className="h-4 w-4 text-red-600" /> : <Clock className="h-4 w-4 text-amber-600" />}
-                          </div>
-                          <div>
-                            <p className={`text-xs font-bold uppercase tracking-wider ${
-                              signer.status === 'signed' ? 'text-emerald-600' : 
-                              signer.status === 'rejected' ? 'text-red-600' : 'text-amber-600'
+                      {signers.map((signer) => {
+                        const signerLog = logs.find(l => l.details?.role === signer.role || l.details?.signer_name === signer.signer_name);
+                        return (
+                          <div key={signer.id} className="relative pl-10">
+                            <div className={`absolute left-0 top-0 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 ${
+                              signer.status === 'signed' ? 'bg-emerald-500' : 
+                              signer.status === 'rejected' ? 'bg-red-500' : 'bg-amber-400'
                             }`}>
-                              {signer.role}
-                            </p>
-                            <h4 className="text-sm font-bold text-slate-900 mt-1">{signer.signer_name}</h4>
-                            <p className="text-xs text-slate-500 mt-1">
-                              {signer.status === 'signed' 
-                                ? `Firmado el ${format(new Date(signer.signed_at!), 'dd/MM/yyyy HH:mm')}`
-                                : signer.status === 'rejected' ? 'Rechazó el documento' : 'Pendiente de firma'}
-                            </p>
-                            
-                            {signer.status === 'signed' && logs.find(l => l.details?.role === signer.role) && (
-                              <div className="mt-2 bg-emerald-50/50 rounded-lg p-2 border border-emerald-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Shield className="h-3 w-3 text-emerald-600" />
-                                  <span className="text-[10px] font-bold text-emerald-700">Hash de Verificación</span>
+                              {signer.status === 'signed' ? <CheckCircle className="h-4 w-4 text-white" /> : 
+                               signer.status === 'rejected' ? <XCircle className="h-4 w-4 text-white" /> : <Clock className="h-4 w-4 text-white" />}
+                            </div>
+                            <div>
+                              <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${
+                                signer.status === 'signed' ? 'text-emerald-600' : 
+                                signer.status === 'rejected' ? 'text-red-600' : 'text-amber-500'
+                              }`}>
+                                {signer.role || 'Interesado'}
+                              </p>
+                              <h4 className="text-sm font-bold text-slate-900 mt-1">{signer.signer_name}</h4>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {signer.status === 'signed' 
+                                  ? `Firma validada el ${format(new Date(signer.signed_at!), 'dd/MM/yyyy HH:mm')}`
+                                  : signer.status === 'rejected' ? 'Rechazó la vinculación legal' : 'Pendiente de confirmación de identidad'}
+                              </p>
+                              
+                              {signer.status === 'signed' && signerLog && (
+                                <div className="mt-3 bg-emerald-50/30 rounded-lg p-2.5 border border-emerald-100/50">
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <Shield className="h-3 w-3 text-emerald-600" />
+                                    <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Hash de Transacción</span>
+                                  </div>
+                                  <p className="text-[9px] font-mono text-emerald-600 break-all leading-relaxed bg-white/50 p-1.5 rounded border border-emerald-50">
+                                    {signerLog.hash}
+                                  </p>
+                                  <div className="mt-2 flex items-center justify-between">
+                                     <span className="text-[8px] font-bold text-emerald-500">PROBADO POR BLOCKCHAIN</span>
+                                     <span className="text-[8px] font-mono text-slate-400">NONCE: {signerLog.id.substring(0, 6)}</span>
+                                  </div>
                                 </div>
-                                <p className="text-[10px] font-mono text-emerald-600 break-all leading-tight">
-                                  {logs.find(l => l.details?.role === signer.role)?.hash}
-                                </p>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
 
                       {/* Nodo Final: Cierre */}
-                      {selectedContract.status === 'signed' && (
-                        <div className="relative pl-10">
-                          <div className="absolute left-0 top-0 h-8 w-8 rounded-full bg-blue-600 border-4 border-white shadow-md flex items-center justify-center z-10">
-                            <CheckCircle className="h-4 w-4 text-white" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Cierre</p>
-                            <h4 className="text-sm font-bold text-slate-900 mt-1">Documento Finalizado</h4>
-                            <p className="text-xs text-slate-500 mt-1">Acuerdo legalmente vinculado</p>
-                            
-                            {selectedContract.pdf_url && (
-                              <a 
-                                href={selectedContract.pdf_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="mt-4 inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors"
-                              >
-                                <ExternalLink className="h-3 w-3" /> Ver Documento Original
-                              </a>
-                            )}
-                          </div>
+                      <div className="relative pl-10">
+                        <div className={`absolute left-0 top-0 h-8 w-8 rounded-full border-4 border-white shadow-md flex items-center justify-center z-10 ${
+                          selectedContract.status === 'signed' ? 'bg-primary-600' : 'bg-slate-200'
+                        }`}>
+                          <CheckCircle className={`h-4 w-4 ${selectedContract.status === 'signed' ? 'text-white' : 'text-slate-400'}`} />
                         </div>
-                      )}
+                        <div>
+                          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${
+                            selectedContract.status === 'signed' ? 'text-primary-600' : 'text-slate-400'
+                          }`}>Cierre de Ciclo</p>
+                          <h4 className="text-sm font-bold text-slate-900 mt-1">
+                            {selectedContract.status === 'signed' ? 'Documento Finalizado' : 'En Espera de Firmas'}
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {selectedContract.status === 'signed' 
+                              ? 'Acuerdo legalmente vinculado y sellado.' 
+                              : 'El documento no podrá cerrarse hasta que todas las partes firmen.'}
+                          </p>
+                          
+                          {selectedContract.status === 'signed' && (
+                             <div className="mt-4 p-3 bg-primary-50 rounded-xl border border-primary-100 flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-primary-700">CERTIFICADO EMITIDO</span>
+                                <Download className="h-3 w-3 text-primary-600" />
+                             </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

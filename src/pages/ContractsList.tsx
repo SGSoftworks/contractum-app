@@ -48,8 +48,10 @@ export function ContractsList() {
   }, []);
 
   async function fetchContracts() {
+    const isFirstLoad = contracts.length === 0;
+    if (isFirstLoad) setLoading(true);
+    
     try {
-      setLoading(true);
       // RLS handles visibility
       const { data, error } = await supabase
         .from('contracts')
@@ -60,7 +62,7 @@ export function ContractsList() {
       setContracts(data || []);
     } catch (err: any) {
       console.error('Error fetching contracts:', err);
-      setError('No se pudieron cargar los contratos.');
+      if (isFirstLoad) setError('No se pudieron cargar los contratos.');
     } finally {
       setLoading(false);
     }

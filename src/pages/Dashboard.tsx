@@ -19,7 +19,10 @@ export function Dashboard() {
   }, [profile]);
 
   async function fetchData() {
-    setLoading(true);
+    // Solo mostramos el spinner bloqueante si es la primera vez (no hay datos)
+    const isFirstLoad = pendingUsers.length === 0 && stats.total === 0;
+    if (isFirstLoad) setLoading(true);
+    
     try {
       if (profile?.is_global_admin) {
         // Fetch users for approval

@@ -13,7 +13,10 @@ export function Users() {
   const isAdmin = profile?.is_global_admin;
 
   const fetchData = async () => {
-    setLoading(true);
+    // Solo bloqueamos si no hay datos previos
+    const isFirstLoad = users.length === 0 && requests.length === 0;
+    if (isFirstLoad) setLoading(true);
+    
     try {
       if (isAdmin) {
         // Cargar solicitudes pendientes (empresas no aprobadas)

@@ -101,8 +101,9 @@ export function CreateContract() {
 
       if (signersError) throw signersError;
 
-      // Mostrar modal de éxito
-      setSuccessData({ id: contractData.id, signers: validSigners });
+      // Redirigir directamente a la lista de contratos
+      alert('¡Contrato creado y enviado exitosamente!');
+      navigate('/app/contracts');
       
     } catch (err: any) {
       console.error(err);
@@ -111,55 +112,6 @@ export function CreateContract() {
       setLoading(false);
     }
   };
-
-  const copyLink = () => {
-    if (!successData) return;
-    const link = `${window.location.origin}/view-contract/${successData.id}`;
-    navigator.clipboard.writeText(link);
-    alert('Enlace de consulta copiado al portapapeles');
-  };
-
-  if (successData) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 animate-in fade-in zoom-in duration-300">
-        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full text-center border border-slate-200">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
-            <CheckCircle className="h-8 w-8 text-green-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">¡Contrato Creado!</h2>
-          <p className="text-slate-600 mb-6">
-            El contrato ha sido guardado. Hemos simulado el envío del enlace de firma a los siguientes correos:
-          </p>
-          
-          <div className="bg-slate-50 rounded-xl p-4 text-left mb-6 space-y-3">
-            {successData.signers.map(s => (
-              <div key={s.id} className="flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-800">{s.email}</span>
-                <span className="text-slate-500">ID: {s.nationalId}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-3">
-            <button 
-              onClick={copyLink}
-              className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-800 font-semibold py-3 rounded-xl hover:bg-slate-200 transition-colors"
-            >
-              <Copy className="h-5 w-5" />
-              Copiar Enlace de Consulta
-            </button>
-            
-            <button 
-              onClick={() => navigate('/app/contracts')}
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white font-semibold py-3 rounded-xl hover:bg-primary-700 transition-colors"
-            >
-              Ir a Mis Contratos <ArrowRight className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">

@@ -32,21 +32,37 @@ CREATE TABLE public.contracts (
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     status TEXT CHECK (status IN ('pending', 'signed', 'rejected', 'cancelled')) DEFAULT 'pending',
+    jurisdiction TEXT,
+    confidentiality_level TEXT,
+    validity_period TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     pdf_url TEXT
 );
 
--- 3. Firmantes (Lógica de acceso por consulta)
+-- 3. Firmantes de Contratos
 CREATE TABLE public.contract_signers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     contract_id UUID REFERENCES public.contracts(id) ON DELETE CASCADE,
     signer_name TEXT NOT NULL,
     signer_email TEXT NOT NULL,
     signer_national_id TEXT NOT NULL,
+    role TEXT,
+    status TEXT CHECK (status IN ('pending', 'signed', 'rejected')) DEFAULT 'pending',
     has_signed BOOLEAN DEFAULT FALSE,
     signed_at TIMESTAMPTZ,
-    signature_data TEXT, -- Base64
+    signature_data TEXT, -- Base64 de la firma o URL al storage
+    created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(contract_id, signer_national_id)
+);
+
+-- 4. Logs de Auditoría (Blockchain)
+CREATE TABLE public.contract_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    contract_id UUID REFERENCES public.contracts(id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    hash TEXT NOT NULL, -- SHA-256 del bloque
+    details JSONB DEFAULT '{}'::jsonb,
+    action_timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ==========================================

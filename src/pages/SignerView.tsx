@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { FileText, Shield, CheckCircle, XCircle } from 'lucide-react';
+import { FileText, Shield, CheckCircle, XCircle, Download } from 'lucide-react';
 import SignaturePad from 'signature_pad';
 
 async function generateHash(message: string) {
@@ -350,14 +350,15 @@ export function SignerView() {
                 <div className="space-y-4">
                    <p className="text-sm font-medium text-slate-700">El contrato ha sido legalizado por todas las partes.</p>
                    {contract.pdf_url ? (
-                     <a 
-                       href={contract.pdf_url} 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="inline-flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-500 transition-all shadow-lg shadow-primary-100"
-                     >
-                       Descargar Contrato Legalizado
-                     </a>
+                      <a 
+                        href={contract.pdf_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                      >
+                        <Download className="h-5 w-5" />
+                        Descargar Contrato Legalizado
+                      </a>
                    ) : (
                      <p className="text-sm text-slate-400 italic">Generando copia oficial, por favor recarga en unos segundos...</p>
                    )}

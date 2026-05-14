@@ -12,37 +12,56 @@ export function Users() {
 
   const isAdmin = profile?.is_global_admin;
 
+  const [error, setError] = useState<string | null>(null);
+
   const fetchData = async () => {
     // Solo bloqueamos si no hay datos previos
     const isFirstLoad = users.length === 0 && requests.length === 0;
-    if (isFirstLoad) setLoading(true);
+    if (isFirstLoad) {
+      setLoading(true);
+      setError(null);
+    }
     
+    // Timeout de seguridad
+    const timeoutId = setTimeout(() => {
+      if (loading && isFirstLoad) {
+        setLoading(false);
+        setError('Tiempo de espera agotado al cargar directorio.');
+      }
+    }, 10000);
+
     try {
       if (isAdmin) {
         // Cargar solicitudes pendientes (empresas no aprobadas)
-        const { data: pendingData } = await supabase
+        const { data: pendingData, error: e1 } = await supabase
           .from('profiles')
           .select('*')
           .eq('is_approved', false)
           .eq('is_global_admin', false);
+        if (e1) throw e1;
         setRequests(pendingData || []);
 
         // Cargar todos los usuarios (empresas)
-        const { data: usersData } = await supabase
+        const { data: usersData, error: e2 } = await supabase
           .from('profiles')
           .select('*')
           .order('created_at', { ascending: false });
+        if (e2) throw e2;
         setUsers(usersData || []);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setError('Error al cargar datos de usuarios.');
     } finally {
       setLoading(false);
+      clearTimeout(timeoutId);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    if (profile) {
+      fetchData();
+    }
   }, [profile]);
 
   const handleApprove = async (request: any) => {

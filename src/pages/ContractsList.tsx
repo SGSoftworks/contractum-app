@@ -102,7 +102,7 @@ export function ContractsList() {
         
         {!profile?.is_global_admin && profile?.is_approved && (
           <Link 
-            to="/contracts/new" 
+            to="/app/contracts/new" 
             className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-primary-500 transition-colors shadow-sm ring-1 ring-primary-700 flex items-center gap-2"
           >
             <span>+</span> Nuevo Contrato

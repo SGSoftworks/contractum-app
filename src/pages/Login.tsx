@@ -43,6 +43,7 @@ export function Login() {
           useAuthStore.getState().setSession(data.session);
           useAuthStore.getState().setUser(data.user);
           await useAuthStore.getState().fetchProfile(data.user!.id);
+          setLoading(false);
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -55,6 +56,7 @@ export function Login() {
           useAuthStore.getState().setSession(data.session);
           useAuthStore.getState().setUser(data.user);
           await useAuthStore.getState().fetchProfile(data.user!.id);
+          setLoading(false);
         } else {
           setLoading(false);
         }

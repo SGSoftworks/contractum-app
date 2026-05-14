@@ -25,6 +25,8 @@ interface AuthState {
   fetchProfile: (userId: string) => Promise<void>;
 }
 
+let authListenerAdded = false;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
@@ -54,6 +56,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: () => {
+    if (authListenerAdded) return;
+    authListenerAdded = true;
     let isInitialized = false;
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -76,9 +80,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // Para SIGNED_IN, mostramos carga y obtenemos perfil
+      // Para SIGNED_IN, mostramos carga solo si es un login nuevo
       if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && !isInitialized)) {
-        set({ isLoading: true });
+        if (!get().user) {
+          set({ isLoading: true });
+        }
         try {
           if (session?.user) {
             await get().fetchProfile(session.user.id);

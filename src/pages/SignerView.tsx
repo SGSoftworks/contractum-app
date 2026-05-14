@@ -3,6 +3,9 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { FileText, Shield, CheckCircle, XCircle, Download } from 'lucide-react';
 import SignaturePad from 'signature_pad';
+import { format } from 'date-fns';
+import * as jspdf from 'jspdf';
+const jsPDF: any = jspdf.jsPDF || jspdf.default || jspdf;
 
 async function generateHash(message: string) {
   const msgUint8 = new TextEncoder().encode(message);
@@ -19,6 +22,8 @@ export function SignerView() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allSigners, setAllSigners] = useState<any[]>([]);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   const [contract, setContract] = useState<any>(null);
   const [signerId, setSignerId] = useState<string | null>(null);
@@ -61,6 +66,13 @@ export function SignerView() {
       return () => window.removeEventListener("resize", resizeCanvas);
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (contract && contract.status === 'signed' && !contract.pdf_url && allSigners.length > 0 && !isGeneratingPdf) {
+      console.log('Generating missing PDF automatically...');
+      generateFinalPDF(contract, allSigners);
+    }
+  }, [contract?.status, contract?.pdf_url, allSigners, isGeneratingPdf]);
 
   const handleValidate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,8 +134,17 @@ export function SignerView() {
         console.error('[SignerView] Contract query error:', contractError);
         throw new Error(`No se pudo cargar el contrato: ${contractError.message}`);
       }
-
-      setContract(contractData);
+      if (contractData) {
+        setContract(contractData);
+        // Fetch all signers for the contract (needed for PDF signatures block)
+        const { data: signersList } = await supabase
+          .from('contract_signers')
+          .select('*')
+          .eq('contract_id', id)
+          .order('signer_name', { ascending: true });
+        
+        setAllSigners(signersList || []);
+      }
       setIsAuthenticated(true);
     } catch (err: any) {
       console.error('[SignerView] Validation error:', err);
@@ -228,7 +249,20 @@ export function SignerView() {
           .eq('id', id);
 
         if (updateContractError) throw updateContractError;
-        setContract({ ...contract, status: 'signed' });
+        
+        // Re-fetch signers for the official PDF
+        const { data: finalSigners } = await supabase
+          .from('contract_signers')
+          .select('*')
+          .eq('contract_id', id)
+          .order('signer_name', { ascending: true });
+
+        const updatedContract = { ...contract, status: 'signed' };
+        setContract(updatedContract);
+        if (finalSigners) {
+          setAllSigners(finalSigners);
+          await generateFinalPDF(updatedContract, finalSigners);
+        }
       }
 
       setHasSigned(true);
@@ -236,6 +270,148 @@ export function SignerView() {
       setError('Error al firmar: ' + err.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const generateFinalPDF = async (targetContract: any, targetSigners: any[]) => {
+    try {
+      setIsGeneratingPdf(true);
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+
+      const addFooter = () => {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        const footerText = `Documento firmado electrónicamente en Contractum - ID: ${targetContract.id.substring(0,18)}...`;
+        doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      };
+
+      const addPageIfNeeded = (heightNeeded: number) => {
+        if (yPos + heightNeeded > pageHeight - 25) {
+          addFooter();
+          doc.addPage();
+          yPos = margin;
+          doc.setTextColor(40);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+        }
+      };
+
+      // Header
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(30);
+      const titleLines = doc.splitTextToSize(targetContract.title.toUpperCase(), contentWidth);
+      doc.text(titleLines, pageWidth / 2, yPos, { align: 'center' });
+      yPos += (titleLines.length * 7) + 10;
+
+      // Metadata
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`FECHA: ${format(new Date(targetContract.created_at), 'dd/MM/yyyy HH:mm')}`, margin, yPos);
+      doc.text(`HASH: ${targetContract.genesis_hash || 'N/A'}`, pageWidth - margin, yPos, { align: 'right' });
+      yPos += 15;
+
+      // Content
+      const cleanHtml = targetContract.content
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<\/h[1-6]>/gi, '\n\n')
+        .replace(/<li>/gi, '  • ')
+        .replace(/<\/li>/gi, '\n')
+        .replace(/<[^>]+>/g, '');
+
+      const blocks = cleanHtml.split('\n');
+      doc.setTextColor(40);
+      blocks.forEach((block: string) => {
+        const text = block.trim();
+        if (!text) return;
+        const isHeader = text.toUpperCase() === text && text.length < 100 || text.includes('CLÁUSULA');
+        if (isHeader) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(12);
+          const lines = doc.splitTextToSize(text, contentWidth);
+          addPageIfNeeded(lines.length * 6 + 5);
+          doc.text(lines, margin, yPos);
+          yPos += (lines.length * 6) + 4;
+        } else {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          const lines = doc.splitTextToSize(text, contentWidth);
+          lines.forEach((line: string) => {
+            addPageIfNeeded(6);
+            doc.text(line, margin, yPos, { align: 'justify', maxWidth: contentWidth });
+            yPos += 5;
+          });
+          yPos += 2;
+        }
+      });
+
+      // Signatures
+      addPageIfNeeded(80);
+      yPos += 15;
+      doc.setDrawColor(0);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 10;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('ACEPTACIÓN Y FIRMAS DIGITALES', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 20;
+
+      const colWidth = contentWidth / 2;
+      for (let i = 0; i < targetSigners.length; i++) {
+        const s = targetSigners[i];
+        const isLeft = i % 2 === 0;
+        const xPos = isLeft ? margin : margin + colWidth + 5;
+        if (isLeft) addPageIfNeeded(65);
+        const currentYBase = yPos;
+
+        if (s.has_signed && s.signature_data) {
+          try {
+            doc.addImage(s.signature_data, 'PNG', xPos, currentYBase, 40, 20);
+          } catch (e) {
+            doc.setFontSize(8);
+            doc.text('[Firma Registrada]', xPos, currentYBase + 10);
+          }
+        }
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(s.signer_name.toUpperCase(), xPos, currentYBase + 28);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(`CC: ${s.signer_national_id}`, xPos, currentYBase + 33);
+        doc.text(`Rol: ${s.role}`, xPos, currentYBase + 38);
+        
+        if (s.has_signed) {
+          doc.setFontSize(7);
+          doc.setTextColor(100);
+          doc.text(`Fecha: ${format(new Date(s.signed_at!), 'dd/MM/yyyy HH:mm:ss')}`, xPos, currentYBase + 43);
+          doc.setFontSize(6);
+          doc.text(`Hash: ${s.signature_hash || 'VERIFIED'}`, xPos, currentYBase + 48, { maxWidth: colWidth - 10 });
+          doc.setTextColor(40);
+        }
+        if (!isLeft || i === targetSigners.length - 1) yPos += 65;
+      }
+
+      addFooter();
+      const pdfBlob = doc.output('blob');
+      const fileName = `${targetContract.id}.pdf`;
+      const { error: uploadError } = await supabase.storage.from('contracts').upload(fileName, pdfBlob, { contentType: 'application/pdf', upsert: true });
+      if (!uploadError) {
+        const { data } = supabase.storage.from('contracts').getPublicUrl(fileName);
+        await supabase.from('contracts').update({ pdf_url: data.publicUrl }).eq('id', targetContract.id);
+        setContract({ ...targetContract, pdf_url: data.publicUrl });
+      }
+    } catch (err) {
+      console.error('Error generating final PDF:', err);
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 

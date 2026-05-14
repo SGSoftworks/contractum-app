@@ -4,6 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { FileText, Shield, CheckCircle, XCircle } from 'lucide-react';
 import SignaturePad from 'signature_pad';
 
+async function generateHash(message: string) {
+  const msgUint8 = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function SignerView() {
   const { id } = useParams<{ id: string }>();
   const [nationalId, setNationalId] = useState('');
@@ -127,6 +134,22 @@ export function SignerView() {
         .eq('id', signerId);
 
       if (updateSignerError) throw updateSignerError;
+
+      // 1.5. Registrar en el Log de Auditoría (Blockchain)
+      try {
+        const hash = await generateHash(`${id}-${signerId}-${new Date().getTime()}`);
+        await supabase.from('contract_logs').insert({
+          contract_id: id,
+          action: `Firma de ${signerId}`,
+          hash: hash,
+          details: { 
+            signer_name: contract.signers?.find((s:any) => s.id === signerId)?.signer_name,
+            action_type: 'signature' 
+          }
+        });
+      } catch (logErr) {
+        console.warn("No se pudo guardar el log de auditoría (posible tabla faltante):", logErr);
+      }
 
       // Verificar si todos los firmantes han firmado
       const { data: allSigners, error: signersError } = await supabase
@@ -313,10 +336,41 @@ export function SignerView() {
         )}
 
         {(hasSigned || contract.status === 'signed') && (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
-            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-green-900">Documento Firmado</h3>
-            <p className="text-green-700 mt-1">Gracias, tu firma ha sido registrada exitosamente.</p>
+          <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-xl shadow-slate-100 animate-in zoom-in duration-300">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="h-10 w-10 text-green-600" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900">¡Firma Registrada!</h3>
+            <p className="text-slate-500 mt-2 max-w-xs mx-auto">
+              Tu firma ha sido vinculada criptográficamente a este documento.
+            </p>
+
+            <div className="mt-8 pt-6 border-t border-slate-100">
+              {contract.status === 'signed' ? (
+                <div className="space-y-4">
+                   <p className="text-sm font-medium text-slate-700">El contrato ha sido legalizado por todas las partes.</p>
+                   {contract.pdf_url ? (
+                     <a 
+                       href={contract.pdf_url} 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       className="inline-flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-500 transition-all shadow-lg shadow-primary-100"
+                     >
+                       Descargar Contrato Legalizado
+                     </a>
+                   ) : (
+                     <p className="text-sm text-slate-400 italic">Generando copia oficial, por favor recarga en unos segundos...</p>
+                   )}
+                </div>
+              ) : (
+                <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                  <p className="text-sm text-amber-800 font-medium leading-relaxed">
+                    Aún faltan otras partes por firmar. <br/> 
+                    <span className="font-bold">Vuelve a consultar este enlace más tarde</span> para descargar tu copia legalizada una vez el proceso termine.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
         

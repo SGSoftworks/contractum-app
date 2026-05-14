@@ -6,6 +6,13 @@ import { Save, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 
+async function generateHash(message: string) {
+  const msgUint8 = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 interface Signer {
   id: string;
   name: string;
@@ -107,6 +114,19 @@ export function CreateContract() {
         .insert(signersToInsert);
 
       if (signersError) throw signersError;
+
+      // 3. Registrar Log Génesis
+      try {
+        const genesisHash = await generateHash(`${contractData.id}-genesis-${new Date().getTime()}`);
+        await supabase.from('contract_logs').insert({
+          contract_id: contractData.id,
+          action: 'Contrato Generado',
+          hash: genesisHash,
+          details: { origin: 'Web App', owner: profile.email }
+        });
+      } catch (logErr) {
+        console.warn("No se pudo guardar el log génesis (posible tabla faltante):", logErr);
+      }
 
       // Redirigir directamente a la lista de contratos
       alert('¡Contrato creado y enviado exitosamente!');

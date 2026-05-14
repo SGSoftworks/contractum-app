@@ -74,6 +74,7 @@ export function ContractsList() {
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [signers, setSigners] = useState<ContractSigner[]>([]);
   const [logs, setLogs] = useState<ContractLog[]>([]);
+  const [logsError, setLogsError] = useState<any>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
   const { profile } = useAuthStore();
@@ -92,7 +93,7 @@ export function ContractsList() {
         .eq('contract_id', contract.id)
         .order('signer_name', { ascending: true });
         
-      const { data: logsData } = await supabase
+      const { data: logsData, error: logsError } = await supabase
         .from('contract_logs')
         .select('*')
         .eq('contract_id', contract.id)
@@ -100,6 +101,11 @@ export function ContractsList() {
         
       setSigners(signersData || []);
       setLogs(logsData || []);
+      setLogsError(logsError);
+
+      if (logsError && logsError.code !== '42P01') { // 42P01 is "relation does not exist"
+        console.error("Error fetching logs:", logsError);
+      }
     } catch (err) {
       console.error('Error fetching history:', err);
     } finally {
@@ -340,7 +346,7 @@ export function ContractsList() {
                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Hash de Bloque Génesis</span>
                             </div>
                             <span className="text-[10px] font-mono text-primary-700 truncate">
-                               {logs.length > 0 ? logs[0].hash : 'PENDING_INITIALIZATION'}
+                               {logs.length > 0 ? logs[0].hash : (logsError ? 'TABLA_AUDITORIA_FALTANTE' : 'PENDIENTE_DE_REGISTRO')}
                             </span>
                           </div>
                         </div>

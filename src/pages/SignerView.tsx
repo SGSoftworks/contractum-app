@@ -19,7 +19,7 @@ export function SignerView() {
   const [signerId, setSignerId] = useState<string | null>(null);
   const [hasSigned, setHasSigned] = useState(false);
 
-  const sigCanvas = useRef<SignatureCanvas>(null);
+  const sigCanvas = useRef<any>(null);
 
   const handleValidate = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -110,8 +110,10 @@ export function ContractDetail() {
   if (loading) return <div className="text-center p-12">Cargando documento...</div>;
   if (error || !contract) return <div className="text-center p-12 text-red-500">{error || 'Contrato no encontrado'}</div>;
 
-  const isFullySigned = signers.every(s => s.status === 'signed');
-  const contractStatus = contract.status === 'signed' ? 'signed' : (isFullySigned ? 'signed' : 'pending_signature');
+  const isFullySigned = signers.length > 0 && signers.every(s => s.status === 'signed' || s.has_signed);
+  const contractStatus: string = ['cancelled', 'rejected', 'signed'].includes(contract.status) 
+    ? contract.status 
+    : (isFullySigned ? 'signed' : 'pending');
 
   // Lógica inteligente: Buscar si el usuario actual debe firmar este contrato
   const currentUserSigner = profile ? signers.find(s => s.signer_national_id === profile.national_id) : null;
@@ -196,10 +198,14 @@ export function ContractDetail() {
     if (!documentRef.current) return;
     try {
       setIsGenerating(true);
-      const canvas = await html2canvas(documentRef.current, { 
+      const element = documentRef.current;
+      const canvas = await html2canvas(element, { 
         scale: 2, 
         useCORS: true,
         logging: false,
+        // Capturar TODO el contenido, incluso lo que está fuera del viewport
+        height: element.scrollHeight,
+        windowHeight: element.scrollHeight,
         onclone: (clonedDoc) => {
           // Remove oklch colors that break html2canvas
           const allElements = clonedDoc.getElementsByTagName('*');
@@ -212,13 +218,31 @@ export function ContractDetail() {
           }
         }
       });
-      const imgData = canvas.toDataURL('image/png');
+
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      // Partir la imagen en páginas A4
+      let yOffset = 0;
+      let page = 0;
+      while (yOffset < imgHeight) {
+        if (page > 0) pdf.addPage();
+        pdf.addImage(
+          canvas.toDataURL('image/png'),
+          'PNG',
+          0,
+          -yOffset,       // desplazar hacia arriba en cada página
+          imgWidth,
+          imgHeight
+        );
+        yOffset += pdfHeight;
+        page++;
+      }
       
-      // Download local copy
+      // Descargar copia local
       pdf.save(`Contrato_Contractum_${contract.id.substring(0,8)}.pdf`);
       
       // Subir al Bucket de Supabase si no se ha subido aún
@@ -237,7 +261,7 @@ export function ContractDetail() {
           const { data } = supabase.storage.from('contracts').getPublicUrl(fileName);
           await supabase.from('contracts').update({ pdf_url: data.publicUrl }).eq('id', contract.id);
         } else {
-          console.error("Error subiendo PDF al bucket:", uploadError);
+          console.error('Error subiendo PDF al bucket:', uploadError);
         }
       }
     } catch (error) {
@@ -263,8 +287,29 @@ export function ContractDetail() {
         </div>
         <div>
            {contractStatus === 'signed' ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border shadow-sm bg-blue-50 text-blue-700 border-blue-200">
-                <CheckCircle className="h-4 w-4" /> Firmado Completamente
+              <div className="text-right">
+                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border shadow-sm bg-blue-50 text-blue-700 border-blue-200">
+                  <CheckCircle className="h-4 w-4" /> Firmado Completamente
+                </span>
+                {/* Fecha y hora de la última firma */}
+                {(() => {
+                  const lastSigned = signers
+                    .filter(s => s.has_signed && s.signed_at)
+                    .sort((a, b) => new Date(b.signed_at).getTime() - new Date(a.signed_at).getTime())[0];
+                  return lastSigned ? (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Completado el {format(new Date(lastSigned.signed_at), 'dd/MM/yyyy')} a las {format(new Date(lastSigned.signed_at), 'HH:mm')}
+                    </p>
+                  ) : null;
+                })()}
+              </div>
+           ) : contractStatus === 'cancelled' ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border shadow-sm bg-slate-100 text-slate-600 border-slate-300">
+                <XCircle className="h-4 w-4" /> Contrato Cancelado
+              </span>
+           ) : contractStatus === 'rejected' ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border shadow-sm bg-red-50 text-red-700 border-red-200">
+                <XCircle className="h-4 w-4" /> Rechazado
               </span>
            ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border shadow-sm bg-amber-50 text-amber-700 border-amber-200">
@@ -297,10 +342,10 @@ export function ContractDetail() {
                 dangerouslySetInnerHTML={{ __html: contract.content }}
              />
              
-             {/* Firmas incrustadas */}
-             <div className="mt-16 pt-8 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-8">
+             {/* Firmas incrustadas - siempre al final, sin que se corten */}
+             <div className="mt-16 pt-8 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-8 break-inside-avoid">
                 {signers.map(signer => (
-                  <div key={signer.id} className="flex flex-col items-center justify-center opacity-90 p-4 border border-dashed border-slate-200 rounded-lg relative">
+                  <div key={signer.id} className="flex flex-col items-center justify-center opacity-90 p-4 border border-dashed border-slate-200 rounded-lg relative break-inside-avoid">
                     {signer.has_signed ? (
                       <>
                         {signer.signature_data && (
@@ -349,9 +394,21 @@ export function ContractDetail() {
                     <p className="text-sm font-bold text-slate-800 leading-tight mt-0.5">{signer.signer_name}</p>
                     <div className="flex items-center justify-between mt-2">
                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                         signer.has_signed ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+                         signer.has_signed 
+                           ? 'bg-green-100 text-green-700' 
+                           : signer.status === 'rejected'
+                           ? 'bg-red-100 text-red-700'
+                           : contract.status === 'cancelled'
+                           ? 'bg-slate-100 text-slate-400 line-through'
+                           : 'bg-slate-100 text-slate-500'
                        }`}>
-                         {signer.has_signed ? 'FIRMADO' : 'PENDIENTE'}
+                         {signer.has_signed 
+                           ? 'FIRMADO' 
+                           : signer.status === 'rejected' 
+                           ? 'RECHAZÓ' 
+                           : contract.status === 'cancelled'
+                           ? 'CANCELADO'
+                           : 'PENDIENTE'}
                        </span>
                        {signer.signed_at && (
                          <span className="text-[10px] text-slate-400 font-mono">

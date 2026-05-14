@@ -49,7 +49,18 @@ export function ContractsList() {
 
   async function fetchContracts() {
     const isFirstLoad = contracts.length === 0;
-    if (isFirstLoad) setLoading(true);
+    if (isFirstLoad) {
+      setLoading(true);
+      setError(null);
+    }
+
+    // Timeout de seguridad
+    const timeoutId = setTimeout(() => {
+      if (loading && isFirstLoad) {
+        setLoading(false);
+        setError('Tiempo de espera agotado al cargar contratos.');
+      }
+    }, 10000);
     
     try {
       // RLS handles visibility
@@ -62,9 +73,10 @@ export function ContractsList() {
       setContracts(data || []);
     } catch (err: any) {
       console.error('Error fetching contracts:', err);
-      if (isFirstLoad) setError('No se pudieron cargar los contratos.');
+      setError('Error al cargar contratos: ' + (err.message || 'Fallo de conexión'));
     } finally {
       setLoading(false);
+      clearTimeout(timeoutId);
     }
   }
 

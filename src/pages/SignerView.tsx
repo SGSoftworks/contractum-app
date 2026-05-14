@@ -2,9 +2,9 @@ import { useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { FileText, Shield, CheckCircle, XCircle } from 'lucide-react';
-import SignatureCanvasComponent from 'react-signature-canvas';
+import * as SignatureCanvasModule from 'react-signature-canvas';
 // @ts-ignore
-const SignatureCanvas = SignatureCanvasComponent.default || SignatureCanvasComponent;
+const SignatureCanvas: any = SignatureCanvasModule.default || SignatureCanvasModule;
 
 export function SignerView() {
   const { id } = useParams<{ id: string }>();

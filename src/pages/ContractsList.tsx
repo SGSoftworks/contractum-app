@@ -1,9 +1,37 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle } from 'lucide-react';
+import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, User, ExternalLink, Hash, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+
+interface ContractSigner {
+  id: string;
+  signer_name: string;
+  signer_email: string;
+  signer_national_id: string;
+  role: string;
+  status: 'pending' | 'signed' | 'rejected';
+  signed_at?: string;
+  signature_data?: string;
+}
+
+interface ContractLog {
+  id: string;
+  action: string;
+  action_timestamp: string;
+  hash: string;
+  details: any;
+}
+
+interface Contract {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  owner_id: string;
+  pdf_url?: string;
+}
 
 const statusStyles = {
   pending: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -41,11 +69,42 @@ export function ContractsList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Timeline State
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [signers, setSigners] = useState<ContractSigner[]>([]);
+  const [logs, setLogs] = useState<ContractLog[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  
   const { profile } = useAuthStore();
 
   useEffect(() => {
     fetchContracts();
   }, []);
+
+  async function fetchContractHistory(contract: Contract) {
+    setSelectedContract(contract);
+    setLoadingHistory(true);
+    try {
+      const { data: signersData } = await supabase
+        .from('contract_signers')
+        .select('*')
+        .eq('contract_id', contract.id)
+        .order('role', { ascending: true });
+        
+      const { data: logsData } = await supabase
+        .from('contract_logs')
+        .select('*')
+        .eq('contract_id', contract.id)
+        .order('action_timestamp', { ascending: true });
+        
+      setSigners(signersData || []);
+      setLogs(logsData || []);
+    } catch (err) {
+      console.error('Error fetching history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
 
   async function fetchContracts() {
     const isFirstLoad = contracts.length === 0;
@@ -167,7 +226,11 @@ export function ContractsList() {
                 {filteredContracts.map((contract) => {
                   const StatusIcon = statusIcons[contract.status as keyof typeof statusIcons] || Clock;
                   return (
-                    <tr key={contract.id} className="hover:bg-slate-50 transition-colors group">
+                    <tr 
+                      key={contract.id} 
+                      onClick={() => fetchContractHistory(contract)}
+                      className="hover:bg-slate-50 cursor-pointer transition-colors group"
+                    >
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
                         <div className="flex items-center">
                           <div className="h-10 w-10 shrink-0 flex items-center justify-center rounded-lg bg-slate-100 text-slate-500 font-bold text-xs border border-slate-200 group-hover:border-slate-300 transition-colors" title={contract.id}>
@@ -189,17 +252,27 @@ export function ContractsList() {
                       </td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                         <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => copyLink(contract.id)} className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-md hover:bg-blue-50" title="Copiar Link de Consulta">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyLink(contract.id);
+                            }} 
+                            className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-md hover:bg-blue-50" title="Copiar Link de Consulta"
+                          >
                             <Copy className="h-5 w-5" />
                           </button>
-                          {/* <Link to={`/app/contracts/${contract.id}`} className="text-slate-400 hover:text-primary-600 transition-colors p-1.5 rounded-md hover:bg-primary-50" title="Ver Detalle Interno">
-                            <Eye className="h-5 w-5" />
-                          </Link> */}
                           {contract.status === 'pending' && !profile?.is_global_admin && (
-                            <button onClick={() => handleCancel(contract.id)} className="text-slate-400 hover:text-red-600 transition-colors p-1.5 rounded-md hover:bg-red-50" title="Cancelar">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCancel(contract.id);
+                              }} 
+                              className="text-slate-400 hover:text-red-600 transition-colors p-1.5 rounded-md hover:bg-red-50" title="Cancelar"
+                            >
                               <Trash2 className="h-5 w-5" />
                             </button>
                           )}
+                          <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-primary-400 group-hover:translate-x-1 transition-all" />
                         </div>
                       </td>
                     </tr>
@@ -215,6 +288,129 @@ export function ContractsList() {
           )}
         </div>
       </div>
+
+      {/* Timeline Slide-over */}
+      {selectedContract && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setSelectedContract(null)} />
+          <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+            <div className="w-screen max-w-md transform transition-all animate-in slide-in-from-right duration-300">
+              <div className="flex h-full flex-col overflow-y-scroll bg-white shadow-2xl">
+                <div className="px-6 py-6 bg-primary-900 text-white">
+                  <div className="flex items-start justify-between">
+                    <h2 className="text-lg font-bold flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-secondary-400" />
+                      Auditoría de Contrato
+                    </h2>
+                    <button onClick={() => setSelectedContract(null)} className="rounded-md text-primary-200 hover:text-white">
+                      <XCircle className="h-6 w-6" />
+                    </button>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm text-primary-200 opacity-80">ID: {selectedContract.id}</p>
+                    <h3 className="text-xl font-bold mt-1">{selectedContract.title}</h3>
+                  </div>
+                </div>
+
+                <div className="relative flex-1 px-6 py-8">
+                  {loadingHistory ? (
+                    <div className="flex justify-center py-12">
+                      <div className="w-8 h-8 border-4 border-slate-200 border-t-primary-600 rounded-full animate-spin"></div>
+                    </div>
+                  ) : (
+                    <div className="space-y-8 relative">
+                      {/* Vertical line connector */}
+                      <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-slate-100" />
+
+                      {/* Nodo 1: Creación */}
+                      <div className="relative pl-10">
+                        <div className="absolute left-0 top-0 h-8 w-8 rounded-full bg-primary-100 border-4 border-white shadow-sm flex items-center justify-center z-10">
+                          <FileText className="h-4 w-4 text-primary-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-primary-600 uppercase tracking-wider">Origen</p>
+                          <h4 className="text-sm font-bold text-slate-900 mt-1">Contrato Generado</h4>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {format(new Date(selectedContract.created_at), 'dd/MM/yyyy HH:mm')}
+                          </p>
+                          <div className="mt-2 bg-slate-50 rounded-lg p-2 border border-slate-100 flex items-center gap-2">
+                            <Hash className="h-3 w-3 text-slate-400" />
+                            <span className="text-[10px] font-mono text-slate-500 truncate">GENESIS_BLOCK_001</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Nodos de Firma */}
+                      {signers.map((signer, idx) => (
+                        <div key={signer.id} className="relative pl-10">
+                          <div className={`absolute left-0 top-0 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 ${
+                            signer.status === 'signed' ? 'bg-emerald-100' : 
+                            signer.status === 'rejected' ? 'bg-red-100' : 'bg-amber-100'
+                          }`}>
+                            {signer.status === 'signed' ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : 
+                             signer.status === 'rejected' ? <XCircle className="h-4 w-4 text-red-600" /> : <Clock className="h-4 w-4 text-amber-600" />}
+                          </div>
+                          <div>
+                            <p className={`text-xs font-bold uppercase tracking-wider ${
+                              signer.status === 'signed' ? 'text-emerald-600' : 
+                              signer.status === 'rejected' ? 'text-red-600' : 'text-amber-600'
+                            }`}>
+                              {signer.role}
+                            </p>
+                            <h4 className="text-sm font-bold text-slate-900 mt-1">{signer.signer_name}</h4>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {signer.status === 'signed' 
+                                ? `Firmado el ${format(new Date(signer.signed_at!), 'dd/MM/yyyy HH:mm')}`
+                                : signer.status === 'rejected' ? 'Rechazó el documento' : 'Pendiente de firma'}
+                            </p>
+                            
+                            {signer.status === 'signed' && logs.find(l => l.details?.role === signer.role) && (
+                              <div className="mt-2 bg-emerald-50/50 rounded-lg p-2 border border-emerald-100">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Shield className="h-3 w-3 text-emerald-600" />
+                                  <span className="text-[10px] font-bold text-emerald-700">Hash de Verificación</span>
+                                </div>
+                                <p className="text-[10px] font-mono text-emerald-600 break-all leading-tight">
+                                  {logs.find(l => l.details?.role === signer.role)?.hash}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Nodo Final: Cierre */}
+                      {selectedContract.status === 'signed' && (
+                        <div className="relative pl-10">
+                          <div className="absolute left-0 top-0 h-8 w-8 rounded-full bg-blue-600 border-4 border-white shadow-md flex items-center justify-center z-10">
+                            <CheckCircle className="h-4 w-4 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Cierre</p>
+                            <h4 className="text-sm font-bold text-slate-900 mt-1">Documento Finalizado</h4>
+                            <p className="text-xs text-slate-500 mt-1">Acuerdo legalmente vinculado</p>
+                            
+                            {selectedContract.pdf_url && (
+                              <a 
+                                href={selectedContract.pdf_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="mt-4 inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors"
+                              >
+                                <ExternalLink className="h-3 w-3" /> Ver Documento Original
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

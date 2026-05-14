@@ -8,7 +8,8 @@ export function Dashboard() {
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
-    completed: 0
+    completed: 0,
+    rejected: 0
   });
   
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
@@ -59,7 +60,8 @@ export function Dashboard() {
           setStats({
             total: contracts.length,
             pending: contracts.filter(c => c.status === 'pending').length,
-            completed: contracts.filter(c => c.status === 'signed').length
+            completed: contracts.filter(c => c.status === 'signed').length,
+            rejected: contracts.filter(c => c.status === 'rejected').length
           });
         }
       }
@@ -192,7 +194,7 @@ export function Dashboard() {
         <p className="text-sm text-slate-500 mt-1">Resumen general de la actividad de contratos</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex items-start gap-4">
           <div className="p-3 bg-slate-100 text-slate-600 rounded-lg">
             <FileText className="h-6 w-6" />
@@ -222,6 +224,17 @@ export function Dashboard() {
           <div>
             <h3 className="text-sm font-medium text-emerald-800">Completados</h3>
             <p className="mt-1 text-3xl font-bold text-emerald-600">{stats.completed}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-red-100 p-6 flex items-start gap-4 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-2 h-full bg-red-500"></div>
+          <div className="p-3 bg-red-100 text-red-600 rounded-lg">
+            <X className="h-6 w-6" />
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-red-800">Rechazados</h3>
+            <p className="mt-1 text-3xl font-bold text-red-600">{stats.rejected}</p>
           </div>
         </div>
       </div>

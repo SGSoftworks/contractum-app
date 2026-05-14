@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, ShieldCheck, PenTool, X, Download, UserCircle } from 'lucide-react';
-import SignatureCanvas from 'react-signature-canvas';
+import SignatureCanvasComponent from 'react-signature-canvas';
+const SignatureCanvas = (SignatureCanvasComponent as any).default || SignatureCanvasComponent;
 import { format } from 'date-fns';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, Hash, ArrowRight, Download } from 'lucide-react';
+import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, Hash, ArrowRight, Download, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -269,6 +269,24 @@ export function ContractsList() {
                           >
                             <Copy className="h-5 w-5" />
                           </button>
+                          {contract.pdf_url && (
+                             <a 
+                               href={contract.pdf_url} 
+                               target="_blank" 
+                               rel="noopener noreferrer"
+                               onClick={(e) => e.stopPropagation()}
+                               className="text-slate-400 hover:text-emerald-600 transition-colors p-1.5 rounded-md hover:bg-emerald-50" title="Descargar PDF"
+                             >
+                               <Download className="h-5 w-5" />
+                             </a>
+                          )}
+                          <Link 
+                            to={`/app/contracts/${contract.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-slate-400 hover:text-primary-600 transition-colors p-1.5 rounded-md hover:bg-primary-50" title="Ver Documento Completo"
+                          >
+                            <Eye className="h-5 w-5" />
+                          </Link>
                           {contract.status === 'pending' && !profile?.is_global_admin && (
                             <button 
                               onClick={(e) => {
@@ -421,10 +439,27 @@ export function ContractsList() {
                               : 'El documento no podrá cerrarse hasta que todas las partes firmen.'}
                           </p>
                           
-                          {selectedContract.status === 'signed' && (
-                             <div className="mt-4 p-3 bg-primary-50 rounded-xl border border-primary-100 flex items-center justify-between">
-                                <span className="text-[10px] font-bold text-primary-700">CERTIFICADO EMITIDO</span>
-                                <Download className="h-3 w-3 text-primary-600" />
+                          {(selectedContract.status === 'signed' || selectedContract.status === 'rejected') && (
+                             <div className="mt-6 space-y-3">
+                               <Link 
+                                 to={`/app/contracts/${selectedContract.id}`}
+                                 className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                               >
+                                 <Eye className="h-4 w-4" />
+                                 Ver Documento Completo
+                               </Link>
+
+                               {selectedContract.pdf_url && (
+                                 <a 
+                                   href={selectedContract.pdf_url}
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   className="w-full flex items-center justify-center gap-2 bg-primary-50 text-primary-700 py-3 rounded-xl font-bold border border-primary-100 hover:bg-primary-100 transition-all"
+                                 >
+                                   <Download className="h-4 w-4" />
+                                   Descargar PDF Oficial
+                                 </a>
+                               )}
                              </div>
                           )}
                         </div>

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
-import { FileText, Clock, CheckCircle, Users, Check, X } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Check, X, Search, Building, Mail, ShieldCheck } from 'lucide-react';
 
 export function Dashboard() {
   const { profile } = useAuthStore();
+  const [adminSearchTerm, setAdminSearchTerm] = useState('');
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -47,7 +48,20 @@ export function Dashboard() {
           .order('created_at', { ascending: false });
           
         if (usersError) throw usersError;
-        setPendingUsers(users || []);
+
+        // Fetch all contracts to count per owner
+        const { data: contracts, error: contractsError } = await supabase
+          .from('contracts')
+          .select('owner_id');
+
+        if (contractsError) throw contractsError;
+
+        const usersWithCounts = (users || []).map(u => ({
+          ...u,
+          contractCount: (contracts || []).filter(c => c.owner_id === u.id).length
+        }));
+
+        setPendingUsers(usersWithCounts);
       } else {
         // Fetch stats for companies
         const { data: contracts, error: contractsError } = await supabase
@@ -116,73 +130,93 @@ export function Dashboard() {
   }
 
   if (profile?.is_global_admin) {
+    const filteredUsers = pendingUsers.filter(u => 
+      u.full_name?.toLowerCase().includes(adminSearchTerm.toLowerCase()) || 
+      u.national_id?.includes(adminSearchTerm) ||
+      u.email?.toLowerCase().includes(adminSearchTerm.toLowerCase())
+    );
+
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Panel de Administración Global</h2>
-          <p className="text-sm text-slate-500 mt-1">Gestiona las aprobaciones de empresas en la plataforma</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary-600" />
-            <h3 className="font-semibold text-slate-800">Empresas Registradas</h3>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Directorio de Empresas</h2>
+            <p className="text-sm text-slate-500 mt-1">Supervisión global de actividad y permisos</p>
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 bg-white">
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Empresa / Contacto</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Email</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Cédula / NIT</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Estado</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {pendingUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                      No hay empresas registradas.
-                    </td>
-                  </tr>
-                ) : (
-                  pendingUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-slate-900">{user.full_name}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{user.email}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{user.national_id || '-'}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                          user.is_approved ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {user.is_approved ? 'Aprobado' : 'Pendiente'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right">
-                        <button
-                          onClick={() => handleApprove(user.id, user.is_approved)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                            user.is_approved 
-                              ? 'text-red-700 bg-red-50 hover:bg-red-100'
-                              : 'text-green-700 bg-green-50 hover:bg-green-100'
-                          }`}
-                        >
-                          {user.is_approved ? (
-                            <><X className="h-4 w-4" /> Revocar</>
-                          ) : (
-                            <><Check className="h-4 w-4" /> Aprobar</>
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="relative w-full sm:max-w-xs">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <Search className="h-4 w-4 text-slate-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Nombre, NIT o Email..."
+              value={adminSearchTerm}
+              onChange={(e) => setAdminSearchTerm(e.target.value)}
+              className="block w-full rounded-lg border-0 py-2 pl-10 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-primary-600 sm:text-sm sm:leading-6"
+            />
           </div>
         </div>
+
+        {filteredUsers.length === 0 ? (
+          <div className="bg-white rounded-xl border border-dashed border-slate-300 p-12 text-center">
+            <Building className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500 font-medium">No se encontraron empresas con esos criterios.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredUsers.map((user) => (
+              <div key={user.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all group">
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="h-12 w-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                      <Building className="h-6 w-6" />
+                    </div>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      user.is_approved ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {user.is_approved ? 'Autorizado' : 'Pendiente'}
+                    </span>
+                  </div>
+                  
+                  <h4 className="text-lg font-bold text-slate-900 mb-1">{user.full_name}</h4>
+                  
+                  <div className="space-y-2 mt-4">
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <Mail className="h-4 w-4" />
+                      <span className="truncate">{user.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>NIT/CC: {user.national_id || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Contratos</p>
+                      <p className="text-xl font-black text-slate-800">{user.contractCount || 0}</p>
+                    </div>
+                    <button
+                      onClick={() => handleApprove(user.id, user.is_approved)}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                        user.is_approved 
+                          ? 'text-red-600 bg-red-50 hover:bg-red-100'
+                          : 'text-white bg-primary-600 hover:bg-primary-700 shadow-sm shadow-primary-200'
+                      }`}
+                    >
+                      {user.is_approved ? (
+                        <><X className="h-4 w-4" /> Revocar</>
+                      ) : (
+                        <><Check className="h-4 w-4" /> Aprobar</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

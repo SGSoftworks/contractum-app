@@ -127,16 +127,27 @@ export function SignerView() {
 
       if (updateSignerError) throw updateSignerError;
 
-      // Actualizar estado del contrato (Asumimos un solo firmante para simplificar)
-      const { error: updateContractError } = await supabase
-        .from('contracts')
-        .update({ status: 'signed' })
-        .eq('id', id);
+      // Verificar si todos los firmantes han firmado
+      const { data: allSigners, error: signersError } = await supabase
+        .from('contract_signers')
+        .select('has_signed')
+        .eq('contract_id', id);
 
-      if (updateContractError) throw updateContractError;
+      if (signersError) throw signersError;
+
+      const allSigned = allSigners && allSigners.every(s => s.has_signed);
+
+      if (allSigned) {
+        const { error: updateContractError } = await supabase
+          .from('contracts')
+          .update({ status: 'signed' })
+          .eq('id', id);
+
+        if (updateContractError) throw updateContractError;
+        setContract({ ...contract, status: 'signed' });
+      }
 
       setHasSigned(true);
-      setContract({ ...contract, status: 'signed' });
     } catch (err: any) {
       setError('Error al firmar: ' + err.message);
     } finally {

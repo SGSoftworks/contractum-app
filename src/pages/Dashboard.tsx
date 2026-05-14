@@ -18,6 +18,7 @@ export function Dashboard() {
   });
   
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
+  const [recentContracts, setRecentContracts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +29,6 @@ export function Dashboard() {
   }, [profile]);
 
   async function fetchData() {
-    // Solo mostramos el spinner bloqueante si es la primera vez (no hay datos)
     const isFirstLoad = pendingUsers.length === 0 && stats.total === 0;
     
     if (isFirstLoad) {
@@ -36,7 +36,6 @@ export function Dashboard() {
       setError(null);
     }
     
-    // Timeout de seguridad para la petición
     const timeoutId = setTimeout(() => {
       setLoading(false);
       setError('El servidor tarda demasiado en responder. Por favor, recarga la página.');
@@ -44,7 +43,7 @@ export function Dashboard() {
 
     try {
       if (profile?.is_global_admin) {
-        // Fetch users for approval
+        // ... (Admin logic)
         const { data: users, error: usersError } = await supabase
           .from('profiles')
           .select('*')
@@ -53,7 +52,6 @@ export function Dashboard() {
           
         if (usersError) throw usersError;
 
-        // Fetch all contracts to count per owner
         const { data: contracts, error: contractsError } = await supabase
           .from('contracts')
           .select('owner_id');
@@ -67,10 +65,11 @@ export function Dashboard() {
 
         setPendingUsers(usersWithCounts);
       } else {
-        // Fetch stats for companies
+        // Fetch stats and recent contracts for companies
         const { data: contracts, error: contractsError } = await supabase
           .from('contracts')
-          .select('status');
+          .select('*')
+          .order('created_at', { ascending: false });
           
         if (contractsError) throw contractsError;
         
@@ -81,6 +80,7 @@ export function Dashboard() {
             completed: contracts.filter(c => c.status === 'signed').length,
             rejected: contracts.filter(c => c.status === 'rejected').length
           });
+          setRecentContracts(contracts.slice(0, 5)); // Only show 5 most recent
         }
       }
     } catch (error: any) {
@@ -327,6 +327,7 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* ... (Existing Stat Cards) ... */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex items-start gap-4">
           <div className="p-3 bg-slate-100 text-slate-600 rounded-lg">
             <FileText className="h-6 w-6" />
@@ -369,6 +370,56 @@ export function Dashboard() {
             <p className="mt-1 text-3xl font-bold text-red-600">{stats.rejected}</p>
           </div>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <Clock className="h-5 w-5 text-primary-600" /> Actividad Reciente
+          </h3>
+          <a href="/app/contracts" className="text-sm font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1 transition-colors">
+            Ver todos los contratos <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+
+        {recentContracts.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+            <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500 font-medium">Aún no has generado contratos.</p>
+            <a href="/app/contracts" className="mt-4 inline-block bg-primary-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-primary-700 transition-all">
+              Crear mi primer contrato
+            </a>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {recentContracts.map((contract) => (
+              <div key={contract.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all group p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                    contract.status === 'signed' ? 'bg-emerald-100 text-emerald-800' : 
+                    contract.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                    'bg-amber-100 text-amber-800'
+                  }`}>
+                    {contract.status === 'signed' ? 'Completado' : contract.status === 'rejected' ? 'Rechazado' : 'Pendiente'}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">#{contract.id.substring(0, 8)}</span>
+                </div>
+                <h4 className="text-lg font-bold text-slate-900 group-hover:text-primary-700 transition-colors line-clamp-1 mb-2">{contract.title}</h4>
+                <p className="text-xs text-slate-500 flex items-center gap-1 mb-6">
+                  <Clock className="h-3 w-3" /> {new Date(contract.created_at).toLocaleDateString()}
+                </p>
+                <div className="flex gap-2">
+                  <a 
+                    href={`/app/contracts/${contract.id}`}
+                    className="flex-1 bg-slate-50 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-100 text-center transition-colors border border-slate-200"
+                  >
+                    Ver Detalles
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

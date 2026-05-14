@@ -312,52 +312,71 @@ export function ContractDetail() {
         {/* Sidebar Info & Actions */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Partes Involucradas</h3>
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3 flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary-600" /> Auditoría de Firmas
+            </h3>
             
-            <div className="space-y-4">
+            <div className="space-y-6">
               {signers.map(signer => (
-                <div key={signer.id} className="flex items-start gap-3">
-                  <div className="mt-0.5">
-                    {signer.status === 'signed' ? <CheckCircle className="h-4 w-4 text-green-500" /> : <div className="h-4 w-4 rounded-full border-2 border-slate-300" />}
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">{signer.role}</p>
-                    <p className="text-sm font-medium text-slate-900 mt-0.5">{signer.signer_name}</p>
-                    <p className="text-xs text-slate-500">CC: {signer.signer_national_id}</p>
+                <div key={signer.id} className="relative pl-6">
+                  <div className={`absolute left-0 top-1 h-3 w-3 rounded-full border-2 ${
+                    signer.status === 'signed' ? 'bg-green-500 border-green-200' : 'bg-white border-slate-300'
+                  }`} />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">{signer.role}</span>
+                    <p className="text-sm font-bold text-slate-800 leading-tight mt-0.5">{signer.signer_name}</p>
+                    <div className="flex items-center justify-between mt-2">
+                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                         signer.status === 'signed' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+                       }`}>
+                         {signer.status === 'signed' ? 'FIRMADO' : 'PENDIENTE'}
+                       </span>
+                       {signer.signed_at && (
+                         <span className="text-[10px] text-slate-400 font-mono">
+                           {format(new Date(signer.signed_at), 'dd/MM/yy')}
+                         </span>
+                       )}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
+
+            <div className="mt-8 pt-6 border-t border-slate-100 space-y-3">
+              {canSign && (
+                <button 
+                  onClick={handleOpenSignatureFlow} 
+                  className="w-full bg-primary-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-primary-500 transition-all shadow-lg shadow-primary-100 flex items-center justify-center gap-2"
+                >
+                  <PenTool className="h-4 w-4" /> Proceder a Firmar
+                </button>
+              )}
+
+              <button 
+                onClick={handleGeneratePDF}
+                disabled={isGenerating}
+                className="w-full bg-slate-800 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-slate-700 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-70"
+              >
+                <Download className="h-4 w-4" /> {isGenerating ? 'Generando...' : 'Descargar PDF Oficial'}
+              </button>
+              
+              <p className="text-[10px] text-slate-400 text-center mt-4">
+                El PDF incluye sellos de tiempo y hashes criptográficos de cada firma.
+              </p>
+            </div>
           </div>
 
-          {!isFullySigned ? (
-             canSign ? (
-                <div className="bg-primary-50 rounded-xl shadow-sm border border-primary-100 p-5">
-                  <h3 className="text-sm font-semibold text-primary-900 mb-2">Tu Firma es Requerida</h3>
-                  <p className="text-xs text-primary-700 mb-4">El sistema detectó que tu usuario está asignado para firmar este documento como <strong>{currentUserSigner?.role}</strong>.</p>
-                  <button onClick={handleOpenSignatureFlow} className="w-full bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-primary-500 transition-colors shadow-sm ring-1 ring-primary-700 flex items-center justify-center gap-2">
-                    <PenTool className="h-4 w-4" /> Proceder a Firmar
-                  </button>
-                </div>
-             ) : (
-                <div className="bg-slate-50 rounded-xl shadow-sm border border-slate-200 p-5 text-center">
-                  <p className="text-sm text-slate-600">Esperando que las partes restantes completen sus firmas.</p>
-                </div>
-             )
-          ) : (
-             <div className="bg-slate-50 rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col items-center text-center">
-                <CheckCircle className="h-8 w-8 text-primary-600 mb-2" />
-                <h3 className="text-sm font-bold text-slate-800 mb-1">Contrato Asegurado</h3>
-                <p className="text-xs text-slate-500 mb-4">Todas las partes han firmado este documento.</p>
-                <button 
-                  onClick={handleGeneratePDF}
-                  disabled={isGenerating}
-                  className="w-full bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-70"
-                >
-                  <Download className="h-4 w-4" /> {isGenerating ? 'Generando...' : 'Descargar PDF'}
-                </button>
+          <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+             <div className="flex items-center gap-2 mb-3">
+                <div className="h-2 w-2 rounded-full bg-primary-500 animate-pulse" />
+                <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest">Estado del Contrato</h3>
              </div>
-          )}
+             <p className="text-xs text-slate-500 leading-relaxed">
+                {contractStatus === 'signed' 
+                  ? 'Este acuerdo ha sido legalmente vinculado y cerrado. Todas las firmas son válidas.' 
+                  : 'Este documento se encuentra en fase de recolección de firmas. El contenido está bloqueado.'}
+             </p>
+          </div>
         </div>
       </div>
 

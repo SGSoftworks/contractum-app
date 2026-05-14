@@ -18,51 +18,52 @@ import { supabase } from './lib/supabase';
 import { useAuthStore } from './store/authStore';
 
 function App() {
-  const setAuth = useAuthStore((state) => state.setAuth);
-  const fetchProfile = useAuthStore((state) => state.fetchProfile);
+  const setSession = useAuthStore((state) => state.setSession);
+  const setUser = useAuthStore((state) => state.setUser);
   const setLoading = useAuthStore((state) => state.setLoading);
+  const fetchProfile = useAuthStore((state) => state.fetchProfile);
 
   useEffect(() => {
-    let active = true;
+    let mounted = true;
 
-    const initAuth = async () => {
+    const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!active) return;
+        if (!mounted) return;
+
+        setSession(session);
+        setUser(session?.user ?? null);
 
         if (session?.user) {
           await fetchProfile(session.user.id);
         }
-
-        setAuth(session);
-      } catch (err) {
-        console.error('Auth initialization error:', err);
-        if (active) setAuth(null);
+      } catch (error) {
+        console.error('Auth initialization error:', error);
       } finally {
-        if (active) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    initAuth();
+    init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!active) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
 
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        }
-        setAuth(session);
-      } else if (event === 'SIGNED_OUT') {
-        setAuth(null);
+      setSession(session);
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        await fetchProfile(session.user.id);
       }
     });
 
     return () => {
-      active = false;
+      mounted = false;
       subscription.unsubscribe();
     };
-  }, [setAuth, fetchProfile, setLoading]);
+  }, []);
 
   return (
     <Router>

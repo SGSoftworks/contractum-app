@@ -70,6 +70,7 @@ export function Dashboard() {
         const { data: contracts, error: contractsError } = await supabase
           .from('contracts')
           .select('*')
+          .eq('owner_id', profile?.id)
           .order('created_at', { ascending: false });
           
         if (contractsError) throw contractsError;

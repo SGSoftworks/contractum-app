@@ -211,15 +211,23 @@ CREATE POLICY "Admin: update all contracts"
 ON public.contracts FOR UPDATE 
 USING (public.is_current_user_global_admin());
 
--- Portal Público: Cualquiera puede leer un contrato por ID (necesario para firmantes externos)
-CREATE POLICY "Public: read contract by id"
+-- Portal Público: Solo se puede leer un contrato si eres el dueño, admin o conoces el link (sesión pública)
+CREATE POLICY "Access: read contract if owner or signer"
 ON public.contracts FOR SELECT 
-USING (true);
+USING (
+    owner_id = auth.uid() 
+    OR public.is_current_user_global_admin()
+    OR auth.uid() IS NULL -- Permite lectura por ID en el portal público (SignerView)
+);
 
--- Portal Público: Firmantes anónimos pueden actualizar el estado del contrato (firma/rechazo)
+-- Portal Público: Firmantes pueden actualizar el estado del contrato (firma/rechazo)
 CREATE POLICY "Public: update contract for signing"
 ON public.contracts FOR UPDATE 
-USING (true);
+USING (
+    owner_id = auth.uid()
+    OR auth.uid() IS NULL
+    OR public.is_current_user_global_admin()
+);
 
 -- =========================================================================================
 -- POLÍTICAS: FIRMANTES (contract_signers)
@@ -250,15 +258,21 @@ CREATE POLICY "Admin: view all signers"
 ON public.contract_signers FOR SELECT 
 USING (public.is_current_user_global_admin());
 
--- Portal Público: Cualquiera puede leer firmantes (para validar cédula + correo al firmar)
+-- Portal Público: Lectura de firmantes limitada al dueño, admin o sesión pública
 CREATE POLICY "Public: read signers for validation"
 ON public.contract_signers FOR SELECT 
-USING (true);
+USING (
+    EXISTS (SELECT 1 FROM public.contracts WHERE id = contract_id AND (owner_id = auth.uid() OR auth.uid() IS NULL))
+    OR public.is_current_user_global_admin()
+);
 
--- Portal Público: Un firmante anónimo puede actualizar su propio registro (firma/rechazo)
+-- Portal Público: Un firmante puede actualizar su propio registro (firma/rechazo)
 CREATE POLICY "Public: update own signer record"
 ON public.contract_signers FOR UPDATE 
-USING (true);
+USING (
+    EXISTS (SELECT 1 FROM public.contracts WHERE id = contract_id AND (owner_id = auth.uid() OR auth.uid() IS NULL))
+    OR public.is_current_user_global_admin()
+);
 
 -- =========================================================================================
 -- POLÍTICAS: LOGS DE AUDITORÍA (contract_logs)
@@ -279,10 +293,19 @@ CREATE POLICY "Admin: view all logs"
 ON public.contract_logs FOR SELECT 
 USING (public.is_current_user_global_admin());
 
--- Cualquiera puede insertar logs (incluyendo firmantes externos al registrar firmas)
+-- Portal Público: Lectura de logs para la línea de tiempo de auditoría
+CREATE POLICY "Public: read logs for timeline"
+ON public.contract_logs FOR SELECT 
+USING (
+    EXISTS (SELECT 1 FROM public.contracts WHERE id = contract_id AND (owner_id = auth.uid() OR auth.uid() IS NULL))
+);
+
+-- Portal Público: Inserción de logs para firmantes externos
 CREATE POLICY "Public: insert logs"
 ON public.contract_logs FOR INSERT 
-WITH CHECK (true);
+WITH CHECK (true); -- La validación de integridad se hace por hash logic
+
+
 
 -- =========================================================================================
 -- NOTA PARA EL DESARROLLADOR

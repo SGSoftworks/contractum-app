@@ -118,10 +118,11 @@ export function ContractsList() {
     }, 10000);
     
     try {
-      // RLS handles visibility
+      // RLS allows public reading by ID, so we MUST filter by owner_id in the dashboard
       const { data, error } = await supabase
         .from('contracts')
         .select('*')
+        .eq('owner_id', profile?.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

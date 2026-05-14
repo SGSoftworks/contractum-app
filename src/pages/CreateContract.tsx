@@ -19,6 +19,9 @@ export function CreateContract() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
+    jurisdiction: 'Colombia',
+    confidentiality: 'Nivel 1 - Público',
+    validity: '12 meses'
   });
 
   const [signers, setSigners] = useState<Signer[]>([
@@ -79,7 +82,10 @@ export function CreateContract() {
           owner_id: profile.id,
           title: formData.title,
           content: htmlContent,
-          status: 'pending'
+          status: 'pending',
+          jurisdiction: formData.jurisdiction,
+          confidentiality_level: formData.confidentiality,
+          validity_period: formData.validity
         })
         .select()
         .single();
@@ -132,15 +138,49 @@ export function CreateContract() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Título del Contrato</label>
+            <input 
+              type="text" 
+              value={formData.title}
+              onChange={e => setFormData({...formData, title: e.target.value})}
+              className="w-full rounded-xl border border-slate-200 py-3 px-4 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all bg-slate-50 font-bold"
+              placeholder="Ej. Contrato de Prestación de Servicios"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Jurisdicción</label>
+            <input 
+              type="text" 
+              value={formData.jurisdiction}
+              onChange={e => setFormData({...formData, jurisdiction: e.target.value})}
+              className="w-full rounded-xl border border-slate-200 py-3 px-4 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all bg-slate-50"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Vigencia</label>
+            <input 
+              type="text" 
+              value={formData.validity}
+              onChange={e => setFormData({...formData, validity: e.target.value})}
+              className="w-full rounded-xl border border-slate-200 py-3 px-4 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all bg-slate-50"
+            />
+          </div>
+        </div>
+
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Título del contrato *</label>
-          <input 
-            type="text" 
-            value={formData.title}
-            onChange={e => setFormData({...formData, title: e.target.value})}
-            className="w-full rounded-md border border-slate-300 py-2 px-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all bg-slate-50"
-            placeholder="Ej. Contrato de Prestación de Servicios"
-          />
+          <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Nivel de Confidencialidad</label>
+          <select 
+            value={formData.confidentiality}
+            onChange={e => setFormData({...formData, confidentiality: e.target.value})}
+            className="w-full rounded-xl border border-slate-200 py-3 px-4 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all bg-slate-50"
+          >
+            <option>Nivel 1 - Público</option>
+            <option>Nivel 2 - Interno</option>
+            <option>Nivel 3 - Confidencial</option>
+            <option>Nivel 4 - Altamente Secreto</option>
+          </select>
         </div>
 
         <div>

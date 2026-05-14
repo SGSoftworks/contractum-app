@@ -12,6 +12,7 @@ interface ContractSigner {
   signer_national_id: string;
   role: string;
   status: 'pending' | 'signed' | 'rejected';
+  has_signed: boolean;
   signed_at?: string;
   signature_data?: string;
 }
@@ -351,27 +352,27 @@ export function ContractsList() {
                         return (
                           <div key={signer.id} className="relative pl-10">
                             <div className={`absolute left-0 top-0 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 ${
-                              signer.status === 'signed' ? 'bg-emerald-500' : 
+                              signer.has_signed ? 'bg-emerald-500' : 
                               signer.status === 'rejected' ? 'bg-red-500' : 'bg-amber-400'
                             }`}>
-                              {signer.status === 'signed' ? <CheckCircle className="h-4 w-4 text-white" /> : 
+                              {signer.has_signed ? <CheckCircle className="h-4 w-4 text-white" /> : 
                                signer.status === 'rejected' ? <XCircle className="h-4 w-4 text-white" /> : <Clock className="h-4 w-4 text-white" />}
                             </div>
                             <div>
                               <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${
-                                signer.status === 'signed' ? 'text-emerald-600' : 
+                                signer.has_signed ? 'text-emerald-600' : 
                                 signer.status === 'rejected' ? 'text-red-600' : 'text-amber-500'
                               }`}>
                                 {signer.role || 'Interesado'}
                               </p>
                               <h4 className="text-sm font-bold text-slate-900 mt-1">{signer.signer_name}</h4>
                               <p className="text-xs text-slate-500 mt-1">
-                                {signer.status === 'signed' 
+                                {signer.has_signed 
                                   ? `Firma validada el ${format(new Date(signer.signed_at!), 'dd/MM/yyyy HH:mm')}`
                                   : signer.status === 'rejected' ? 'Rechazó la vinculación legal' : 'Pendiente de confirmación de identidad'}
                               </p>
                               
-                              {signer.status === 'signed' && signerLog && (
+                              {signer.has_signed && signerLog && (
                                 <div className="mt-3 bg-emerald-50/30 rounded-lg p-2.5 border border-emerald-100/50">
                                   <div className="flex items-center gap-2 mb-1.5">
                                     <Shield className="h-3 w-3 text-emerald-600" />

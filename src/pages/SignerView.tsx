@@ -120,6 +120,7 @@ export function SignerView() {
         .from('contract_signers')
         .update({
           has_signed: true,
+          status: 'signed',
           signed_at: new Date().toISOString(),
           signature_data: signatureData
         })

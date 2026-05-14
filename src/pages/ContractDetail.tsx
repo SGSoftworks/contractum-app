@@ -138,7 +138,7 @@ export function ContractDetail() {
       // Update signer
       const { error: signerError } = await supabase
         .from('contract_signers')
-        .update({ status: 'signed', signature_data: signatureData, signed_at: new Date().toISOString() })
+        .update({ status: 'signed', has_signed: true, signature_data: signatureData, signed_at: new Date().toISOString() })
         .eq('id', currentUserSigner.id);
         
       if (signerError) throw signerError;
@@ -174,7 +174,7 @@ export function ContractDetail() {
       setIsModalOpen(false);
       
       // Check if this was the last signature
-      const remainingSigners = signers.filter(s => s.status === 'pending' && s.id !== currentUserSigner.id);
+      const remainingSigners = signers.filter(s => !s.has_signed && s.id !== currentUserSigner.id);
       if (remainingSigners.length === 0) {
         // Automatically set contract to signed if everyone has signed
         await supabase.from('contracts').update({ status: 'signed' }).eq('id', id);
@@ -196,7 +196,22 @@ export function ContractDetail() {
     if (!documentRef.current) return;
     try {
       setIsGenerating(true);
-      const canvas = await html2canvas(documentRef.current, { scale: 2, useCORS: true });
+      const canvas = await html2canvas(documentRef.current, { 
+        scale: 2, 
+        useCORS: true,
+        logging: false,
+        onclone: (clonedDoc) => {
+          // Remove oklch colors that break html2canvas
+          const allElements = clonedDoc.getElementsByTagName('*');
+          for (let i = 0; i < allElements.length; i++) {
+            const el = allElements[i] as HTMLElement;
+            const style = window.getComputedStyle(el);
+            if (style.color && style.color.includes('oklch')) el.style.color = '#1e293b';
+            if (style.backgroundColor && style.backgroundColor.includes('oklch')) el.style.backgroundColor = 'transparent';
+            if (style.borderColor && style.borderColor.includes('oklch')) el.style.borderColor = '#e2e8f0';
+          }
+        }
+      });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -286,7 +301,7 @@ export function ContractDetail() {
              <div className="mt-16 pt-8 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-8">
                 {signers.map(signer => (
                   <div key={signer.id} className="flex flex-col items-center justify-center opacity-90 p-4 border border-dashed border-slate-200 rounded-lg relative">
-                    {signer.status === 'signed' ? (
+                    {signer.has_signed ? (
                       <>
                         {signer.signature_data && (
                           <img src={signer.signature_data} alt="Firma" className="h-16 mb-2 object-contain mix-blend-multiply" />
@@ -320,16 +335,16 @@ export function ContractDetail() {
               {signers.map(signer => (
                 <div key={signer.id} className="relative pl-6">
                   <div className={`absolute left-0 top-1 h-3 w-3 rounded-full border-2 ${
-                    signer.status === 'signed' ? 'bg-green-500 border-green-200' : 'bg-white border-slate-300'
+                    signer.has_signed ? 'bg-green-500 border-green-200' : 'bg-white border-slate-300'
                   }`} />
                   <div className="flex flex-col">
                     <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">{signer.role}</span>
                     <p className="text-sm font-bold text-slate-800 leading-tight mt-0.5">{signer.signer_name}</p>
                     <div className="flex items-center justify-between mt-2">
                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                         signer.status === 'signed' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+                         signer.has_signed ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
                        }`}>
-                         {signer.status === 'signed' ? 'FIRMADO' : 'PENDIENTE'}
+                         {signer.has_signed ? 'FIRMADO' : 'PENDIENTE'}
                        </span>
                        {signer.signed_at && (
                          <span className="text-[10px] text-slate-400 font-mono">

@@ -7,7 +7,8 @@ const SignatureCanvas: any = SignatureCanvasModule.default?.default || Signature
 import { format } from 'date-fns';
 import * as jspdf from 'jspdf';
 // @ts-ignore
-const jsPDF = jspdf.jsPDF || jspdf.default || jspdf;
+// @ts-ignore
+const jsPDF: any = jspdf.jsPDF || jspdf.default || jspdf;
 import html2canvas from 'html2canvas';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';

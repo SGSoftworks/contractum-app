@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
-import { FileText, Clock, CheckCircle, Check, X, Search, Building, Mail, ShieldCheck } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Check, X, Search, Building, Mail, ShieldCheck, ExternalLink, Eye } from 'lucide-react';
 
 export function Dashboard() {
   const { profile } = useAuthStore();
   const [adminSearchTerm, setAdminSearchTerm] = useState('');
+  const [selectedUserContracts, setSelectedUserContracts] = useState<any[]>([]);
+  const [isContractsSlideOverOpen, setIsContractsSlideOverOpen] = useState(false);
+  const [selectedUserName, setSelectedUserName] = useState('');
+  const [isFetchingUserContracts, setIsFetchingUserContracts] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -87,6 +91,27 @@ export function Dashboard() {
       clearTimeout(timeoutId);
     }
   }
+
+  const handleViewContracts = async (userId: string, userName: string) => {
+    setIsFetchingUserContracts(true);
+    setSelectedUserName(userName);
+    try {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('owner_id', userId)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      setSelectedUserContracts(data || []);
+      setIsContractsSlideOverOpen(true);
+    } catch (error) {
+      console.error('Error fetching user contracts:', error);
+      alert('Error al obtener contratos de la empresa');
+    } finally {
+      setIsFetchingUserContracts(false);
+    }
+  };
 
   const handleApprove = async (userId: string, currentStatus: boolean) => {
     try {
@@ -193,10 +218,17 @@ export function Dashboard() {
                   </div>
 
                   <div className="mt-6 pt-6 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Contratos</p>
-                      <p className="text-xl font-black text-slate-800">{user.contractCount || 0}</p>
-                    </div>
+                    <button 
+                      onClick={() => handleViewContracts(user.id, user.full_name)}
+                      disabled={isFetchingUserContracts}
+                      className="text-left group/count"
+                    >
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest group-hover/count:text-primary-600 transition-colors">Contratos</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xl font-black text-slate-800 group-hover/count:text-primary-700 transition-colors">{user.contractCount || 0}</p>
+                        <Eye className="h-4 w-4 text-slate-300 group-hover/count:text-primary-500 transition-colors" />
+                      </div>
+                    </button>
                     <button
                       onClick={() => handleApprove(user.id, user.is_approved)}
                       className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
@@ -215,6 +247,72 @@ export function Dashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Slide-over de Contratos de la Empresa */}
+        {isContractsSlideOverOpen && (
+          <div className="fixed inset-0 z-[100] overflow-hidden">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setIsContractsSlideOverOpen(false)} />
+            <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+              <div className="w-screen max-w-2xl transform transition ease-in-out duration-500 sm:duration-700">
+                <div className="flex h-full flex-col bg-white shadow-2xl">
+                  <div className="px-6 py-8 bg-slate-50 border-b border-slate-200">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h2 className="text-2xl font-black text-slate-900 leading-tight">Contratos Generados</h2>
+                        <p className="mt-2 text-sm text-slate-500 flex items-center gap-2 font-medium">
+                          <Building className="h-4 w-4" /> {selectedUserName}
+                        </p>
+                      </div>
+                      <button onClick={() => setIsContractsSlideOverOpen(false)} className="p-2 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all">
+                        <X className="h-6 w-6" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="relative flex-1 px-6 py-6 overflow-y-auto bg-slate-50/30">
+                    {selectedUserContracts.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                        <FileText className="h-12 w-12 mb-4 opacity-20" />
+                        <p className="font-medium text-lg italic">Esta empresa aún no ha creado contratos.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {selectedUserContracts.map((contract) => (
+                          <div key={contract.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-primary-200 transition-all group">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-uppercase">#{contract.id.substring(0, 8)}</span>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                    contract.status === 'signed' ? 'bg-emerald-100 text-emerald-800' : 
+                                    contract.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                                    'bg-amber-100 text-amber-800'
+                                  }`}>
+                                    {contract.status === 'signed' ? 'Firmado' : contract.status === 'rejected' ? 'Rechazado' : 'Pendiente'}
+                                  </span>
+                                </div>
+                                <h4 className="text-lg font-bold text-slate-900 group-hover:text-primary-700 transition-colors">{contract.title}</h4>
+                                <p className="text-sm text-slate-500 mt-1 font-medium">Creado el {new Date(contract.created_at).toLocaleDateString()}</p>
+                              </div>
+                              <a 
+                                href={`/app/contracts/${contract.id}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="p-2 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
+                              >
+                                <ExternalLink className="h-5 w-5" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

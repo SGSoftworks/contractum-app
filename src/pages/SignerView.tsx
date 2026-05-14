@@ -79,9 +79,9 @@ export function SignerView() {
     setIsLoading(true);
     setError(null);
 
-    // Timeout de seguridad: 8 segundos máximo para la validación
+    // Timeout de seguridad: 10 segundos máximo para la validación
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('La conexión tardó demasiado. Verifica tu internet e intenta de nuevo.')), 8000)
+      setTimeout(() => reject(new Error('La conexión tardó demasiado. Verifica tu internet e intenta de nuevo.')), 10000)
     );
 
     try {

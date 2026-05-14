@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock, UserPlus, LogIn } from 'lucide-react';
 import { Navigate, Link } from 'react-router-dom';
@@ -13,12 +13,7 @@ export function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
-  const { user, resetState } = useAuthStore();
-
-  // Reset al Montar: Limpiamos estados zombies del authStore para evitar pantallas de carga congeladas
-  useEffect(() => {
-    resetState();
-  }, [resetState]);
+  const { user } = useAuthStore();
 
   if (user) {
     return <Navigate to="/app" replace />;
@@ -36,27 +31,14 @@ export function Login() {
         if (error) throw error;
         setSuccessMessage('Enlace enviado a tu correo. Revisa tu bandeja de entrada.');
       } else if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        setSuccessMessage('Registro exitoso. Puedes iniciar sesión ahora o revisar tu correo para confirmar.');
+        setSuccessMessage('Registro exitoso. Revisa tu correo para confirmar o inicia sesión.');
         setIsSignUp(false);
-        
-        // Si Supabase logueó automáticamente al usuario (confirm email OFF)
-        if (data.session) {
-          useAuthStore.getState().setSession(data.session);
-          useAuthStore.getState().setUser(data.user);
-          await useAuthStore.getState().fetchProfile(data.user!.id);
-        }
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        
-        if (data.session) {
-          // Forzar la actualización del estado si el listener es lento
-          useAuthStore.getState().setSession(data.session);
-          useAuthStore.getState().setUser(data.user);
-          await useAuthStore.getState().fetchProfile(data.user!.id);
-        }
+        // El onAuthStateChange en App.tsx se encargará de redirigir al detectar la sesión
       }
     } catch (err: any) {
       console.error("Auth error:", err);

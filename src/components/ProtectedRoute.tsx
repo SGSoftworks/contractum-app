@@ -2,37 +2,15 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 
 export function ProtectedRoute() {
-  const { user, profile, isLoading } = useAuthStore();
+  const { user, profile, isLoading, signOut } = useAuthStore();
 
-  // Verificamos si hay un token Supabase en localStorage como indicador de sesión activa
-  const hasStoredSession = Object.keys(localStorage).some(
-    key => key.startsWith('sb-') && key.endsWith('-auth-token')
-  );
-
-  // Si está cargando pero no hay sesión almacenada, enviamos al login inmediatamente
   if (isLoading) {
-    if (!hasStoredSession) {
-      return <Navigate to="/login" replace />;
-    }
-
-    // Hay sesión almacenada: mostramos loader con opción de escape manual
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
-          <p className="text-primary-700 font-semibold text-sm animate-pulse">Cargando Contractum...</p>
+          <p className="text-primary-700 font-semibold text-sm">Cargando...</p>
         </div>
-        <button
-          onClick={() => {
-            // Limpieza manual de emergencia: borra sesión y recarga desde cero
-            localStorage.clear();
-            sessionStorage.clear();
-            window.location.href = '/login';
-          }}
-          className="text-xs text-slate-400 hover:text-slate-600 underline mt-2 transition-colors"
-        >
-          ¿Tarda mucho? Haz clic aquí para reiniciar
-        </button>
       </div>
     );
   }
@@ -60,7 +38,7 @@ export function ProtectedRoute() {
             Tu cuenta empresarial está en revisión. Te notificaremos cuando tengas acceso completo a la plataforma.
           </p>
           <button
-            onClick={() => useAuthStore.getState().signOut()}
+            onClick={signOut}
             className="w-full bg-slate-900 text-white font-semibold py-3 rounded-lg hover:bg-slate-800 transition-colors"
           >
             Cerrar Sesión

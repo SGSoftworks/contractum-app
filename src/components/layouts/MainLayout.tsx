@@ -17,7 +17,7 @@ export function MainLayout() {
 
   // Gestión de inactividad (3 minutos)
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: any;
 
     const resetTimer = () => {
       if (timeoutId) clearTimeout(timeoutId);

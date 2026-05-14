@@ -121,27 +121,28 @@ export function CreateContract() {
           `${contractData.id}-genesis-${profile.id}-${new Date().getTime()}`
         );
 
-        // Guardar el genesis_hash en el contrato para referencia rápida
+        // Guardar el genesis_hash en el contrato (puede fallar si la col no existe aún)
         await supabase
           .from('contracts')
           .update({ genesis_hash: genesisHash })
-          .eq('id', contractData.id);
+          .eq('id', contractData.id)
+          .then(({ error }) => { if (error) console.warn('genesis_hash col missing:', error.message); });
 
-        // Insertar el primer bloque en la cadena de auditoría
-        await supabase.from('contract_logs').insert({
-          contract_id: contractData.id,
-          action: 'genesis',
-          actor: profile.full_name || profile.email,
-          hash: genesisHash,
-          previous_hash: null,
-          details: {
-            origin: 'Web App',
-            owner_id: profile.id,
-            owner_email: profile.email,
-            signers_count: validSigners.length,
-            jurisdiction: formData.jurisdiction
-          }
-        });
+        // Intentar insertar el log con todos los campos; si falla por columnas faltantes, reintentar con los básicos
+        const fullLog = { contract_id: contractData.id, action: 'genesis', actor: profile.full_name || profile.email, hash: genesisHash, previous_hash: null as string | null, details: { origin: 'Web App', owner_email: profile.email, signers_count: validSigners.length } };
+        const { error: logErr1 } = await supabase.from('contract_logs').insert(fullLog);
+        
+        if (logErr1) {
+          console.warn('Log extendido falló, reintentando con campos básicos:', logErr1.message);
+          // Fallback: insertar solo con las columnas básicas que siempre existen
+          const { error: logErr2 } = await supabase.from('contract_logs').insert({
+            contract_id: contractData.id,
+            action: 'genesis',
+            hash: genesisHash,
+            details: { origin: 'Web App', owner_email: profile.email }
+          });
+          if (logErr2) console.warn('Log básico también falló:', logErr2.message);
+        }
       } catch (logErr) {
         console.warn('No se pudo guardar el log génesis:', logErr);
       }

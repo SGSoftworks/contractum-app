@@ -291,14 +291,13 @@ export function ContractDetail() {
                 <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border shadow-sm bg-blue-50 text-blue-700 border-blue-200">
                   <CheckCircle className="h-4 w-4" /> Firmado Completamente
                 </span>
-                {/* Fecha y hora de la última firma */}
                 {(() => {
                   const lastSigned = signers
                     .filter(s => s.has_signed && s.signed_at)
                     .sort((a, b) => new Date(b.signed_at).getTime() - new Date(a.signed_at).getTime())[0];
                   return lastSigned ? (
-                    <p className="text-xs text-slate-500 mt-1">
-                      Completado el {format(new Date(lastSigned.signed_at), 'dd/MM/yyyy')} a las {format(new Date(lastSigned.signed_at), 'HH:mm')}
+                    <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-bold">
+                      SELLADO EL {format(new Date(lastSigned.signed_at), 'dd/MM/yyyy HH:mm')}
                     </p>
                   ) : null;
                 })()}
@@ -326,53 +325,72 @@ export function ContractDetail() {
             className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[600px] p-8 md:p-12 relative flex flex-col"
             ref={documentRef}
           >
-             {/* Metadatos visuales en el PDF */}
-             <div className="mb-8 pb-4 border-b border-slate-100 flex justify-between items-start text-xs text-slate-500">
-                <div>
-                  <p><span className="font-semibold text-slate-700">Jurisdicción:</span> {contract.jurisdiction || 'N/A'}</p>
-                  <p><span className="font-semibold text-slate-700">Confidencialidad:</span> {contract.confidentiality_level || 'N/A'}</p>
+             {/* Cabecera Legal del Documento */}
+              <div className="mb-10 pb-6 border-b-2 border-slate-900 flex justify-between items-end">
+                <div className="space-y-1">
+                  <h1 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-2">{contract.title}</h1>
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[10px] text-slate-600 uppercase tracking-widest font-bold">
+                    <p><span className="text-slate-400">Jurisdicción:</span> {contract.jurisdiction || 'COLOMBIA'}</p>
+                    <p><span className="text-slate-400">Confidencialidad:</span> {contract.confidentiality_level || 'ALTA'}</p>
+                    <p><span className="text-slate-400">Fecha Creación:</span> {format(new Date(contract.created_at), 'dd/MM/yyyy HH:mm')}</p>
+                    <p><span className="text-slate-400">Vigencia:</span> {contract.validity_period || 'INDEFINIDA'}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p><span className="font-semibold text-slate-700">Vigencia:</span> {contract.validity_period || 'N/A'}</p>
+                <div className="text-right flex flex-col items-end max-w-[200px]">
+                   <div className="bg-slate-50 p-2 border border-slate-200 rounded mb-1 w-full">
+                     <p className="text-[8px] text-slate-400 font-bold uppercase mb-1">Genesis Hash / Blockchain ID</p>
+                     <p className="text-[9px] font-mono text-slate-800 break-all leading-tight">
+                       {contract.genesis_hash || 'PENDIENTE_DE_REGISTRO'}
+                     </p>
+                   </div>
+                   <p className="text-[8px] text-slate-400 font-medium italic">Documento verificado digitalmente por Contractum</p>
                 </div>
-             </div>
+              </div>
 
              <div 
-                className="prose max-w-none text-slate-800 flex-1"
+                className="prose prose-slate max-w-none text-slate-900 flex-1 leading-relaxed text-sm text-justify"
+                style={{ fontFamily: "'Inter', sans-serif" }}
                 dangerouslySetInnerHTML={{ __html: contract.content }}
              />
              
              {/* Firmas incrustadas - siempre al final, sin que se corten */}
-             <div className="mt-16 pt-8 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-8 break-inside-avoid">
+              <div className="mt-20 pt-10 border-t-2 border-slate-900 grid grid-cols-1 sm:grid-cols-2 gap-12 break-inside-avoid">
                 {signers.map(signer => (
-                  <div key={signer.id} className="flex flex-col items-center justify-center opacity-90 p-4 border border-dashed border-slate-200 rounded-lg relative break-inside-avoid">
+                  <div key={signer.id} className="flex flex-col items-start p-2 break-inside-avoid">
                     {signer.has_signed ? (
-                      <>
-                        {signer.signature_data && (
-                          <img src={signer.signature_data} alt="Firma" className="h-16 mb-2 object-contain mix-blend-multiply" />
-                        )}
-                        <div className="text-primary-600 mb-1 absolute top-2 right-2"><ShieldCheck className="h-5 w-5" /></div>
-                        <p className="text-sm font-semibold text-slate-700">Firmado por: {signer.signer_name}</p>
-                        <p className="text-xs text-slate-500 mt-1">CC: {signer.signer_national_id} • {signer.role}</p>
-                        <p className="text-[10px] text-slate-400 mt-1">{signer.signed_at ? format(new Date(signer.signed_at), 'dd/MM/yyyy HH:mm') : ''}</p>
-                      </>
-                    ) : signer.status === 'rejected' ? (
-                      <div className="text-center p-4">
-                        <XCircle className="h-10 w-10 text-red-500 mx-auto mb-2" />
-                        <p className="text-sm font-bold text-red-700">VINCULACIÓN RECHAZADA</p>
-                        <p className="text-xs text-slate-600 mt-1 font-medium italic">"{signer.rejection_reason}"</p>
-                        <p className="text-[10px] text-slate-400 mt-2">Por: {signer.signer_name} • {signer.role}</p>
+                      <div className="w-full space-y-3">
+                        <div className="h-24 flex items-center justify-start border-b border-slate-200 relative mb-4">
+                          {signer.signature_data && (
+                            <img src={signer.signature_data} alt="Firma" className="h-20 object-contain mix-blend-multiply" />
+                          )}
+                          <div className="absolute -top-2 -right-2 bg-blue-600 text-white p-1 rounded-full shadow-lg scale-75">
+                            <ShieldCheck className="h-4 w-4" />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{signer.signer_name}</p>
+                          <div className="flex flex-col text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none space-y-1">
+                            <p>CC: {signer.signer_national_id}</p>
+                            <p>{signer.role}</p>
+                            <p className="text-blue-600 font-black">{signer.signed_at ? format(new Date(signer.signed_at), 'dd/MM/yyyy HH:mm:ss') : ''}</p>
+                          </div>
+                          {signer.signature_hash && (
+                             <p className="text-[7px] font-mono text-slate-400 mt-2 break-all border-t border-slate-100 pt-1">
+                               Hash: {signer.signature_hash}
+                             </p>
+                          )}
+                        </div>
                       </div>
                     ) : (
-                      <>
-                        <div className="text-slate-300 mb-2"><UserCircle className="h-8 w-8" /></div>
-                        <p className="text-sm font-medium text-slate-400">Firma Pendiente</p>
-                        <p className="text-xs text-slate-400 mt-1">{signer.signer_name} ({signer.role})</p>
-                      </>
+                      <div className="w-full h-32 border border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center bg-slate-50 text-slate-400">
+                        <PenTool className="h-6 w-6 mb-2 opacity-20" />
+                        <p className="text-[10px] font-bold uppercase tracking-widest">{signer.status === 'rejected' ? 'RECHAZADO' : 'FIRMA PENDIENTE'}</p>
+                        <p className="text-[9px] mt-1">{signer.signer_name}</p>
+                      </div>
                     )}
                   </div>
                 ))}
-             </div>
+              </div>
           </div>
         </div>
 

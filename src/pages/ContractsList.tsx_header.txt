@@ -1,0 +1,58 @@
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, Hash, ArrowRight, Download, Eye, Lock } from 'lucide-react';
+import { format } from 'date-fns';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
+
+interface ContractSigner {
+  id: string;
+  signer_name: string;
+  signer_email: string;
+  signer_national_id: string;
+  role: string;
+  status: 'pending' | 'signed' | 'rejected';
+  has_signed: boolean;
+  rejection_reason?: string;
+  signed_at?: string;
+  signature_data?: string;
+}
+
+interface ContractLog {
+  id: string;
+  action: string;
+  action_timestamp: string;
+  hash: string;
+  details: any;
+}
+
+interface Contract {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  owner_id: string;
+  pdf_url?: string;
+  genesis_hash?: string;
+}
+
+const statusStyles = {
+  pending: 'bg-amber-50 text-amber-700 border-amber-200',
+  signed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  rejected: 'bg-red-50 text-red-700 border-red-200',
+  cancelled: 'bg-slate-50 text-slate-700 border-slate-200',
+};
+
+const statusLabels = {
+  pending: 'Pendiente',
+  signed: 'Firmado',
+  rejected: 'Rechazado',
+  cancelled: 'Cancelado'
+};
+
+const statusIcons = {
+  pending: Clock,
+  signed: CheckCircle,
+  rejected: XCircle,
+  cancelled: AlertTriangle
+};

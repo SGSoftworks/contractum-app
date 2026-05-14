@@ -173,7 +173,6 @@ export function SignerView() {
 
       // Registrar en el Log de Auditoría con cadena de hashes
       try {
-        // Obtener el hash del bloque anterior para encadenar
         const { data: lastLog } = await supabase
           .from('contract_logs')
           .select('hash')
@@ -185,19 +184,29 @@ export function SignerView() {
         const previousHash = lastLog?.hash || 'GENESIS';
         const blockHash = await generateHash(`${previousHash}-${signerId}-${Date.now()}`);
 
-        await supabase.from('contract_logs').insert({
+        const signerName = contract?.signer_name || email;
+        const logData = {
           contract_id: id,
           action: 'signature',
-          actor: contract.signers?.find((s: any) => s.id === signerId)?.signer_name || email,
+          actor: signerName,
           hash: blockHash,
           previous_hash: previousHash,
           details: {
-            signer_name: contract.signers?.find((s: any) => s.id === signerId)?.signer_name,
             signer_national_id: nationalId,
-            action_type: 'signature',
             signature_hash: signatureHash
           }
-        });
+        };
+
+        const { error: logErr1 } = await supabase.from('contract_logs').insert(logData);
+        if (logErr1) {
+          console.warn('Log extendido falló, reintentando con campos básicos:', logErr1.message);
+          await supabase.from('contract_logs').insert({
+            contract_id: id,
+            action: 'signature',
+            hash: blockHash,
+            details: { signer_name: signerName, signature_hash: signatureHash }
+          });
+        }
       } catch (logErr) {
         console.warn('No se pudo guardar el log de auditoría:', logErr);
       }
@@ -267,18 +276,28 @@ export function SignerView() {
         const previousHash = lastLog?.hash || 'GENESIS';
         const blockHash = await generateHash(`${previousHash}-${signerId}-rejected-${Date.now()}`);
 
-        await supabase.from('contract_logs').insert({
+        const signerName = email;
+        const logData = {
           contract_id: id,
           action: 'rejection',
-          actor: contract.signers?.find((s: any) => s.id === signerId)?.signer_name || email,
+          actor: signerName,
           hash: blockHash,
           previous_hash: previousHash,
           details: { 
             signer_national_id: nationalId,
-            reason: rejectionReason,
-            rejected_at: rejectedAt
+            reason: rejectionReason
           }
-        });
+        };
+
+        const { error: logErr1 } = await supabase.from('contract_logs').insert(logData);
+        if (logErr1) {
+           await supabase.from('contract_logs').insert({
+             contract_id: id,
+             action: 'rejection',
+             hash: blockHash,
+             details: { reason: rejectionReason, signer_name: signerName }
+           });
+        }
       } catch (e) {
         console.warn('No se pudo registrar el log de rechazo:', e);
       }

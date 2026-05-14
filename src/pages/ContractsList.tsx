@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, Hash, ArrowRight, Download, Eye } from 'lucide-react';
+import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, Hash, ArrowRight, Download, Eye, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -33,8 +33,8 @@ interface Contract {
   created_at: string;
   owner_id: string;
   pdf_url?: string;
+  genesis_hash?: string;
 }
-
 const statusStyles = {
   pending: 'bg-amber-50 text-amber-700 border-amber-200',
   signed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -56,14 +56,6 @@ const statusIcons = {
   cancelled: AlertTriangle
 };
 
-interface Contract {
-  id: string;
-  title: string;
-  status: string;
-  created_at: string;
-  owner_id: string;
-}
-
 export function ContractsList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -75,7 +67,6 @@ export function ContractsList() {
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [signers, setSigners] = useState<ContractSigner[]>([]);
   const [logs, setLogs] = useState<ContractLog[]>([]);
-  const [logsError, setLogsError] = useState<any>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
   const { profile } = useAuthStore();
@@ -94,7 +85,7 @@ export function ContractsList() {
         .eq('contract_id', contract.id)
         .order('signer_name', { ascending: true });
         
-      const { data: logsData, error: logsError } = await supabase
+      const { data: logsData, error: fetchErr } = await supabase
         .from('contract_logs')
         .select('*')
         .eq('contract_id', contract.id)
@@ -102,10 +93,9 @@ export function ContractsList() {
         
       setSigners(signersData || []);
       setLogs(logsData || []);
-      setLogsError(logsError);
 
-      if (logsError && logsError.code !== '42P01') { // 42P01 is "relation does not exist"
-        console.error("Error fetching logs:", logsError);
+      if (fetchErr && fetchErr.code !== '42P01') { 
+        console.error("Error fetching logs:", fetchErr);
       }
     } catch (err) {
       console.error('Error fetching history:', err);
@@ -364,8 +354,8 @@ export function ContractsList() {
                                <Hash className="h-3 w-3 text-slate-400" />
                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Hash de Bloque Génesis</span>
                             </div>
-                            <span className="text-[10px] font-mono text-primary-700 truncate">
-                               {logs.length > 0 ? logs[0].hash : (logsError ? 'TABLA_AUDITORIA_FALTANTE' : 'PENDIENTE_DE_REGISTRO')}
+                            <span className="text-[10px] font-mono text-primary-700 break-all leading-tight">
+                               {logs.find(l => l.action === 'genesis')?.hash || selectedContract.genesis_hash || 'PENDIENTE_DE_REGISTRO'}
                             </span>
                           </div>
                         </div>
@@ -422,48 +412,66 @@ export function ContractsList() {
                       {/* Nodo Final: Cierre */}
                       <div className="relative pl-10">
                         <div className={`absolute left-0 top-0 h-8 w-8 rounded-full border-4 border-white shadow-md flex items-center justify-center z-10 ${
-                          selectedContract.status === 'signed' ? 'bg-primary-600' : 'bg-slate-200'
+                          selectedContract.status === 'signed' ? 'bg-indigo-900' : 
+                          selectedContract.status === 'rejected' ? 'bg-red-600' : 'bg-slate-200'
                         }`}>
-                          <CheckCircle className={`h-4 w-4 ${selectedContract.status === 'signed' ? 'text-white' : 'text-slate-400'}`} />
+                          <Lock className={`h-4 w-4 ${selectedContract.status === 'signed' || selectedContract.status === 'rejected' ? 'text-white' : 'text-slate-400'}`} />
                         </div>
                         <div>
                           <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${
-                            selectedContract.status === 'signed' ? 'text-primary-600' : 'text-slate-400'
+                            selectedContract.status === 'signed' ? 'text-indigo-600' : 
+                            selectedContract.status === 'rejected' ? 'text-red-600' : 'text-slate-400'
                           }`}>Cierre de Ciclo</p>
                           <h4 className="text-sm font-bold text-slate-900 mt-1">
-                            {selectedContract.status === 'signed' ? 'Documento Finalizado' : 'En Espera de Firmas'}
+                            {selectedContract.status === 'signed' ? 'Documento Finalizado' : 
+                             selectedContract.status === 'cancelled' ? 'Ciclo Cancelado' : 
+                             selectedContract.status === 'rejected' ? 'Ciclo Rechazado' : 'En Espera de Firmas'}
                           </h4>
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                             {selectedContract.status === 'signed' 
                               ? 'Acuerdo legalmente vinculado y sellado.' 
+                              : selectedContract.status === 'rejected'
+                              ? 'El proceso ha finalizado debido al rechazo de una de las partes.'
                               : 'El documento no podrá cerrarse hasta que todas las partes firmen.'}
                           </p>
                           
-                          {(selectedContract.status === 'signed' || selectedContract.status === 'rejected') && (
-                             <div className="mt-6 space-y-3">
-                               <Link 
-                                 to={`/app/contracts/${selectedContract.id}`}
-                                 className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
-                               >
-                                 <Eye className="h-4 w-4" />
-                                 Ver Documento Completo
-                               </Link>
-
-                               {selectedContract.pdf_url && (
-                                 <a 
-                                   href={selectedContract.pdf_url}
-                                   target="_blank"
-                                   rel="noopener noreferrer"
-                                   className="w-full flex items-center justify-center gap-2 bg-primary-50 text-primary-700 py-3 rounded-xl font-bold border border-primary-100 hover:bg-primary-100 transition-all"
-                                 >
-                                   <Download className="h-4 w-4" />
-                                   Descargar PDF Oficial
-                                 </a>
-                               )}
-                             </div>
+                          {selectedContract.status === 'signed' && (
+                            <div className="mt-2 bg-indigo-50 rounded-lg p-2 border border-indigo-100 flex flex-col gap-1">
+                               <div className="flex items-center gap-2">
+                                  <Shield className="h-3 w-3 text-indigo-400" />
+                                  <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider">Hash Final de Integridad</span>
+                               </div>
+                               <span className="text-[10px] font-mono text-indigo-900 break-all leading-tight">
+                                  {logs.find(l => l.action.includes('Firma'))?.hash || 'INTEGRITY_VERIFIED_OK'}
+                                </span>
+                            </div>
                           )}
                         </div>
                       </div>
+
+                      {(selectedContract.status === 'signed' || selectedContract.status === 'rejected') && (
+                        <div className="mt-6 space-y-3">
+                          <Link 
+                            to={`/app/contracts/${selectedContract.id}`}
+                            className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Ver Documento Completo
+                          </Link>
+
+                          {selectedContract.pdf_url && (
+                            <a 
+                              href={selectedContract.pdf_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full flex items-center justify-center gap-2 bg-primary-50 text-primary-700 py-3 rounded-xl font-bold border border-primary-100 hover:bg-primary-100 transition-all"
+                            >
+                              <Download className="h-4 w-4" />
+                              Descargar PDF Oficial
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

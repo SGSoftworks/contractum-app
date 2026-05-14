@@ -11,6 +11,7 @@ interface Signer {
   name: string;
   email: string;
   nationalId: string;
+  role: string;
 }
 
 export function CreateContract() {
@@ -21,7 +22,7 @@ export function CreateContract() {
   });
 
   const [signers, setSigners] = useState<Signer[]>([
-    { id: '1', name: '', email: '', nationalId: '' }
+    { id: '1', name: '', email: '', nationalId: '', role: 'Firmante' }
   ]);
 
 
@@ -36,7 +37,7 @@ export function CreateContract() {
   });
 
   const handleAddSigner = () => {
-    setSigners([...signers, { id: Math.random().toString(), name: '', email: '', nationalId: '' }]);
+    setSigners([...signers, { id: Math.random().toString(), name: '', email: '', nationalId: '', role: 'Firmante' }]);
   };
 
   const handleRemoveSigner = (id: string) => {
@@ -91,6 +92,7 @@ export function CreateContract() {
         signer_name: s.name || 'Sin Nombre',
         signer_email: s.email,
         signer_national_id: s.nationalId,
+        role: s.role || 'Firmante',
         has_signed: false
       }));
 
@@ -159,10 +161,11 @@ export function CreateContract() {
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3">Nombre Completo</th>
-                  <th className="px-4 py-3">Correo Electrónico</th>
+                  <th className="px-4 py-3">Nombre</th>
+                  <th className="px-4 py-3">Correo</th>
                   <th className="px-4 py-3">Cédula</th>
-                  <th className="px-4 py-3 w-16 text-center">Acciones</th>
+                  <th className="px-4 py-3">Rol / Cargo</th>
+                  <th className="px-4 py-3 w-16 text-center"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -176,6 +179,9 @@ export function CreateContract() {
                     </td>
                     <td className="px-4 py-3">
                       <input type="text" placeholder="Ej. 12345678" value={signer.nationalId} onChange={e => updateSigner(signer.id, 'nationalId', e.target.value)} className="w-full text-sm border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-primary-500 outline-none" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input type="text" placeholder="Ej. Gerente" value={signer.role} onChange={e => updateSigner(signer.id, 'role', e.target.value)} className="w-full text-sm border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-primary-500 outline-none" />
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => handleRemoveSigner(signer.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">

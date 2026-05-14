@@ -89,7 +89,7 @@ export function ContractsList() {
         .from('contract_signers')
         .select('*')
         .eq('contract_id', contract.id)
-        .order('role', { ascending: true });
+        .order('signer_name', { ascending: true });
         
       const { data: logsData } = await supabase
         .from('contract_logs')

@@ -87,7 +87,7 @@ export function ContractDetail() {
         .from('contract_signers')
         .select('*')
         .eq('contract_id', id)
-        .order('role', { ascending: true });
+        .order('signer_name', { ascending: true });
         
       if (signersError) throw signersError;
       

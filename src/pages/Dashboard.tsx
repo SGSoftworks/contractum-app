@@ -15,7 +15,8 @@ export function Dashboard() {
     total: 0,
     pending: 0,
     completed: 0,
-    rejected: 0
+    rejected: 0,
+    cancelled: 0
   });
   
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
@@ -80,7 +81,8 @@ export function Dashboard() {
             total: contracts.length,
             pending: contracts.filter(c => c.status === 'pending').length,
             completed: contracts.filter(c => c.status === 'signed').length,
-            rejected: contracts.filter(c => c.status === 'rejected').length
+            rejected: contracts.filter(c => c.status === 'rejected').length,
+            cancelled: contracts.filter(c => c.status === 'cancelled').length
           });
           setRecentContracts(contracts.slice(0, 5)); // Only show 5 most recent
         }
@@ -360,6 +362,17 @@ export function Dashboard() {
           </div>
         </div>
 
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex items-start gap-4 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-2 h-full bg-slate-400"></div>
+          <div className="p-3 bg-slate-100 text-slate-600 rounded-lg">
+            <X className="h-6 w-6" />
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-slate-500">Cancelados</h3>
+            <p className="mt-1 text-3xl font-bold text-slate-600">{stats.cancelled}</p>
+          </div>
+        </div>
+
         <div className="bg-white rounded-xl shadow-sm border border-red-100 p-6 flex items-start gap-4 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-2 h-full bg-red-500"></div>
           <div className="p-3 bg-red-100 text-red-600 rounded-lg">
@@ -398,9 +411,13 @@ export function Dashboard() {
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                     contract.status === 'signed' ? 'bg-emerald-100 text-emerald-800' : 
                     contract.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                    contract.status === 'cancelled' ? 'bg-slate-200 text-slate-700' :
                     'bg-amber-100 text-amber-800'
                   }`}>
-                    {contract.status === 'signed' ? 'Completado' : contract.status === 'rejected' ? 'Rechazado' : 'Pendiente'}
+                    {contract.status === 'signed' ? 'Completado' : 
+                     contract.status === 'rejected' ? 'Rechazado' : 
+                     contract.status === 'cancelled' ? 'Cancelado' :
+                     'Pendiente'}
                   </span>
                   <span className="text-[10px] font-mono text-slate-400">#{contract.id.substring(0, 8)}</span>
                 </div>

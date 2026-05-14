@@ -206,6 +206,7 @@ export function ContractsList() {
             <button onClick={() => setStatusFilter('pending')} className={`px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap ${statusFilter === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Pendientes</button>
             <button onClick={() => setStatusFilter('signed')} className={`px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap ${statusFilter === 'signed' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Firmados</button>
             <button onClick={() => setStatusFilter('rejected')} className={`px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap ${statusFilter === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Rechazados</button>
+            <button onClick={() => setStatusFilter('cancelled')} className={`px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap ${statusFilter === 'cancelled' ? 'bg-slate-200 text-slate-800' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Cancelados</button>
           </div>
         </div>
         

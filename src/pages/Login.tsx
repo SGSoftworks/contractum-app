@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock, UserPlus, LogIn } from 'lucide-react';
 import { Navigate, Link } from 'react-router-dom';
@@ -15,6 +15,11 @@ export function Login() {
   
   const { user } = useAuthStore();
 
+  // Reset al Montar: Limpiamos estados zombies del authStore si los hay
+  useEffect(() => {
+    useAuthStore.setState({ isLoading: false });
+  }, []);
+
   if (user) {
     return <Navigate to="/app" replace />;
   }
@@ -30,40 +35,43 @@ export function Login() {
         const { error } = await supabase.auth.signInWithOtp({ email });
         if (error) throw error;
         setSuccessMessage('Enlace enviado a tu correo. Revisa tu bandeja de entrada.');
-        setLoading(false);
       } else if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         setSuccessMessage('Registro exitoso. Puedes iniciar sesión ahora o revisar tu correo para confirmar.');
         setIsSignUp(false);
-        setLoading(false);
         
         // Si Supabase logueó automáticamente al usuario (confirm email OFF)
         if (data.session) {
           useAuthStore.getState().setSession(data.session);
           useAuthStore.getState().setUser(data.user);
           await useAuthStore.getState().fetchProfile(data.user!.id);
-          setLoading(false);
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
         
         if (data.session) {
           // Forzar la actualización del estado si el listener es lento
           useAuthStore.getState().setSession(data.session);
           useAuthStore.getState().setUser(data.user);
           await useAuthStore.getState().fetchProfile(data.user!.id);
-          setLoading(false);
-        } else {
-          setLoading(false);
         }
       }
     } catch (err: any) {
       console.error("Auth error:", err);
-      setError(err.message || "Ocurrió un error inesperado al autenticar");
+      let errorMsg = err.message || "Ocurrió un error inesperado al autenticar";
+      
+      // Traducción de errores comunes para mejor UX
+      if (errorMsg.includes("Invalid login credentials")) {
+        errorMsg = "Credenciales incorrectas. Verifica tu correo y contraseña.";
+      } else if (errorMsg.includes("Failed to fetch")) {
+        errorMsg = "Error de conexión. Verifica tu internet y vuelve a intentarlo.";
+      }
+      
+      setError(errorMsg);
+    } finally {
+      // ESTO APAGA EL "PROCESANDO..." PASE LO QUE PASE
       setLoading(false);
     }
   };

@@ -223,6 +223,9 @@ export function ContractDetail() {
           addFooter();
           doc.addPage();
           yPos = margin;
+          doc.setTextColor(40); // Reset to body color
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
         }
       };
 
@@ -302,10 +305,13 @@ export function ContractDetail() {
         const s = signers[i];
         const isLeft = i % 2 === 0;
         const xPos = isLeft ? margin : margin + colWidth + 5;
-        const currentYBase = yPos + (Math.floor(i / 2) * 65);
+        
+        // Verificar si necesitamos nueva página ANTES de calcular la posición base
+        // Si es el inicio de una fila (i par), comprobamos espacio para la fila completa
+        if (isLeft) addPageIfNeeded(65);
 
-        addPageIfNeeded(60);
-
+        const currentYBase = yPos; // Usamos yPos actual que pudo haber sido reseteado
+        
         if (s.has_signed && s.signature_data) {
           try {
             doc.addImage(s.signature_data, 'PNG', xPos, currentYBase, 40, 20);
@@ -335,6 +341,11 @@ export function ContractDetail() {
           doc.setFontSize(6);
           doc.text(`Hash: ${s.signature_hash || 'VERIFIED'}`, xPos, currentYBase + 48, { maxWidth: colWidth - 10 });
           doc.setTextColor(40);
+        }
+
+        // Si terminamos una fila (i impar), avanzamos yPos
+        if (!isLeft || i === signers.length - 1) {
+          yPos += 65;
         }
       }
 

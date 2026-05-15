@@ -60,7 +60,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setSession(session)
       setUser(session?.user ?? null)
-      setLoading(false)
 
       if (session?.user) {
         const { data, error } = await fetchProfile(session.user.id)
@@ -72,6 +71,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       } else {
         setProfile(null)
+      }
+
+      if (mounted) {
+        setLoading(false)
       }
     })
 

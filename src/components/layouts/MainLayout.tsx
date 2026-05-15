@@ -1,7 +1,8 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, Settings, LogOut, Menu, X, Users } from 'lucide-react';
 import { useState } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
+import { supabase } from '@/lib/supabase';
 
 const navigation = [
   { name: 'Dashboard', href: '/app', icon: LayoutDashboard },
@@ -11,7 +12,7 @@ const navigation = [
 ];
 
 export function MainLayout() {
-  const { profile, signOut } = useAuthStore();
+  const profile = useProfileStore((state) => state.profile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
 
@@ -64,7 +65,16 @@ export function MainLayout() {
                 <p className="text-sm font-semibold text-white truncate">{profile?.full_name || 'Usuario'}</p>
                 <p className="text-xs text-primary-300 truncate capitalize">{profile?.is_global_admin ? 'Admin Global' : (profile?.is_approved ? 'Empresa' : 'Pendiente')}</p>
               </div>
-              <button onClick={() => signOut()} className="text-primary-400 hover:text-red-400 transition-colors p-1 rounded-md hover:bg-primary-800">
+              <button
+                onClick={async () => {
+                  try {
+                    await supabase.auth.signOut();
+                  } catch (error) {
+                    console.error('Sign out error:', error);
+                  }
+                }}
+                className="text-primary-400 hover:text-red-400 transition-colors p-1 rounded-md hover:bg-primary-800"
+              >
                 <LogOut className="h-5 w-5" />
               </button>
             </div>

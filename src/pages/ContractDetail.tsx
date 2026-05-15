@@ -9,7 +9,7 @@ import * as jspdf from 'jspdf';
 const jsPDF: any = jspdf.jsPDF || jspdf.default || jspdf;
 
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
 
 async function generateHash(message: string) {
   const msgUint8 = new TextEncoder().encode(message);
@@ -21,7 +21,7 @@ async function generateHash(message: string) {
 export function ContractDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { profile } = useAuthStore();
+  const profile = useProfileStore((state) => state.profile);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

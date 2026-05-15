@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
 import { FileText, Clock, CheckCircle, Check, X, Search, Building, Mail, ShieldCheck, ExternalLink, Eye } from 'lucide-react';
 
 export function Dashboard() {
-  const { profile } = useAuthStore();
+  const profile = useProfileStore((state) => state.profile);
   const [adminSearchTerm, setAdminSearchTerm] = useState('');
   const [selectedUserContracts, setSelectedUserContracts] = useState<any[]>([]);
   const [isContractsSlideOverOpen, setIsContractsSlideOverOpen] = useState(false);

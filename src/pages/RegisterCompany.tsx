@@ -5,7 +5,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 
 export function RegisterCompany() {
-  const { user, isLoading } = useAuthStore();
+  const { user, loading: authLoading } = useAuthStore();
   const [formData, setFormData] = useState({
     companyName: '',
     nationalId: '',
@@ -17,7 +17,7 @@ export function RegisterCompany() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  if (isLoading && !success) {
+  if (authLoading && !success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="w-10 h-10 border-4 border-slate-200 border-t-primary-600 rounded-full animate-spin" />

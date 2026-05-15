@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
 import { Settings as SettingsIcon, Lock, CheckCircle } from 'lucide-react';
 
 export function Settings() {
-  const { profile } = useAuthStore();
+  const profile = useProfileStore((state) => state.profile);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);

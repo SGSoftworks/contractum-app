@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
 import { Users as UsersIcon, CheckCircle, Building2, UserCircle, RefreshCcw } from 'lucide-react';
 import { format } from 'date-fns';
 
 export function Users() {
-  const { profile } = useAuthStore();
+  const profile = useProfileStore((state) => state.profile);
   const [requests, setRequests] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

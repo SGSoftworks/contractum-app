@@ -4,7 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Save, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
 
 async function generateHash(message: string) {
   const msgUint8 = new TextEncoder().encode(message);
@@ -58,7 +58,7 @@ export function CreateContract() {
     setSigners(signers.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
-  const { profile } = useAuthStore();
+  const profile = useProfileStore((state) => state.profile);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

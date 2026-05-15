@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Search, Copy, Trash2, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Shield, Hash, ArrowRight, Download, Eye, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
 
 interface ContractSigner {
   id: string;
@@ -69,7 +69,7 @@ export function ContractsList() {
   const [logs, setLogs] = useState<ContractLog[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
-  const { profile } = useAuthStore();
+  const profile = useProfileStore((state) => state.profile);
 
   useEffect(() => {
     if (profile) {

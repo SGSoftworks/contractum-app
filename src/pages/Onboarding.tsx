@@ -2,18 +2,22 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
+import { fetchProfile } from '@/lib/profile';
 import { ShieldCheck, User } from 'lucide-react';
 
 export function Onboarding() {
-  const { user, profile, isLoading, fetchProfile } = useAuthStore();
+  const { user, loading: authLoading } = useAuthStore();
+  const profile = useProfileStore((state) => state.profile);
+  const setProfile = useProfileStore((state) => state.setProfile);
   const navigate = useNavigate();
   
   const [fullName, setFullName] = useState('');
   const [nationalId, setNationalId] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="w-10 h-10 border-4 border-slate-200 border-t-primary-600 rounded-full animate-spin" />
@@ -32,7 +36,7 @@ export function Onboarding() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
     setError(null);
 
     try {
@@ -51,15 +55,17 @@ export function Onboarding() {
         throw insertError;
       }
 
-      // Refresh profile in the store
-      await fetchProfile(user.id);
+      const { data, error } = await fetchProfile(user.id);
+      if (!error) {
+        setProfile(data);
+      }
       
       // Redirect to home
       navigate('/');
     } catch (err: any) {
       setError(err.message || 'Ocurrió un error al guardar el perfil.');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -132,10 +138,10 @@ export function Onboarding() {
             <div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={saving}
                 className="flex w-full justify-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 disabled:opacity-70 transition-colors"
               >
-                {loading ? 'Guardando...' : 'Guardar y Continuar'}
+                {saving ? 'Guardando...' : 'Guardar y Continuar'}
               </button>
             </div>
           </form>

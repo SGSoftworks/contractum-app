@@ -16,36 +16,57 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     let mounted = true
+    let resolved = false
+    let timeout: ReturnType<typeof setTimeout>
+
+    const finish = (session: any) => {
+      if (!mounted) return
+      setSession(session)
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        fetchProfile(session.user.id).then(({ data, error }) => {
+          if (mounted && !error) setProfile(data)
+        })
+      } else {
+        setProfile(null)
+      }
+      setLoading(false)
+    }
 
     const initializeAuth = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+      timeout = setTimeout(async () => {
+        if (mounted && !resolved) {
+          resolved = true
+          console.warn('[Auth] Session check timed out, clearing')
+          try { await supabase.auth.signOut() } catch (_) {}
+          if (mounted) finish(null)
+        }
+      }, 5000)
 
-        if (!mounted) return
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (!mounted || resolved) return
+        resolved = true
+        clearTimeout(timeout)
+
+        if (error || !session) {
+          if (error) console.warn('[Auth] Session error:', error.message)
+          finish(null)
+          return
+        }
 
         setSession(session)
-        setUser(session?.user ?? null)
+        setUser(session.user)
 
-        if (session?.user) {
-          const { data, error } = await fetchProfile(session.user.id)
-          if (!error) {
-            setProfile(data)
-          } else {
-            console.error('Profile load error:', error)
-            setProfile(null)
-          }
-        } else {
-          setProfile(null)
-        }
+        const { data, error: profileError } = await fetchProfile(session.user.id)
+        if (!profileError) setProfile(data)
+        else setProfile(null)
       } catch (error) {
-        console.error('Auth init error:', error)
-        if (mounted) {
-          setProfile(null)
-        }
+        console.error('[Auth] Init error:', error)
+        if (mounted) finish(null)
       } finally {
-        if (mounted) {
+        if (mounted && !resolved) {
+          resolved = true
           setLoading(false)
         }
       }
@@ -53,33 +74,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     initializeAuth()
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return
-
-      setSession(session)
-      setUser(session?.user ?? null)
-
-      if (session?.user) {
-        const { data, error } = await fetchProfile(session.user.id)
-        if (!error) {
-          setProfile(data)
-        } else {
-          console.error('Profile load error:', error)
-          setProfile(null)
-        }
-      } else {
-        setProfile(null)
-      }
-
-      if (mounted) {
-        setLoading(false)
-      }
+      finish(session)
     })
 
     return () => {
       mounted = false
+      resolved = true
+      clearTimeout(timeout)
       subscription.unsubscribe()
     }
   }, [setLoading, setSession, setUser, setProfile])

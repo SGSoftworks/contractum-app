@@ -79,32 +79,31 @@ export function SignerView() {
     setIsLoading(true);
     setError(null);
 
-    // Timeout de seguridad: 10 segundos máximo para la validación
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('La conexión tardó demasiado. Verifica tu internet e intenta de nuevo.')), 10000)
-    );
+    const controller = new AbortController();
+    const timeoutMs = 30000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      // Validar en la tabla de firmantes con timeout
-      const signerQuery = supabase
+      const { data: signers, error: signerError } = await supabase
         .from('contract_signers')
         .select('*')
+        .abortSignal(controller.signal)
         .eq('contract_id', id)
         .eq('signer_national_id', nationalId.trim())
         .eq('signer_email', email.trim().toLowerCase());
 
-      const { data: signers, error: signerError } = await Promise.race([
-        signerQuery,
-        timeoutPromise
-      ]) as any;
-
       if (signerError) {
+        if (signerError.name === 'AbortError') {
+          throw new Error('La conexión tardó demasiado. Verifica tu internet e intenta de nuevo.');
+        }
         console.error('[SignerView] Signer query error:', signerError);
         throw new Error(`Error de base de datos: ${signerError.message}`);
       }
 
       if (!signers || signers.length === 0) {
         setError('Credenciales inválidas. Verifica tu cédula y correo electrónico.');
+        setIsLoading(false);
+        clearTimeout(timeoutId);
         return;
       }
 
@@ -118,28 +117,26 @@ export function SignerView() {
         setIsRejected(true);
       }
 
-      // Obtener el contrato con timeout
-      const contractQuery = supabase
+      const { data: contractData, error: contractError } = await supabase
         .from('contracts')
         .select('*')
+        .abortSignal(controller.signal)
         .eq('id', id)
         .single();
 
-      const { data: contractData, error: contractError } = await Promise.race([
-        contractQuery,
-        timeoutPromise
-      ]) as any;
-
       if (contractError) {
+        if (contractError.name === 'AbortError') {
+          throw new Error('La conexión tardó demasiado. Verifica tu internet e intenta de nuevo.');
+        }
         console.error('[SignerView] Contract query error:', contractError);
         throw new Error(`No se pudo cargar el contrato: ${contractError.message}`);
       }
       if (contractData) {
         setContract(contractData);
-        // Fetch all signers for the contract (needed for PDF signatures block)
         const { data: signersList } = await supabase
           .from('contract_signers')
           .select('*')
+          .abortSignal(controller.signal)
           .eq('contract_id', id)
           .order('signer_name', { ascending: true });
         
@@ -150,6 +147,7 @@ export function SignerView() {
       console.error('[SignerView] Validation error:', err);
       setError(err.message || 'Error al validar credenciales. Intenta de nuevo.');
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };

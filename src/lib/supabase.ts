@@ -9,18 +9,21 @@ const fetchWithTimeout: typeof fetch = (url, init) => {
   return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout))
 }
 
-export const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      flowType: 'pkce'
-    },
-    global: {
-      fetch: fetchWithTimeout
-    }
+const clientConfig = {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce'
+  },
+  global: {
+    fetch: fetchWithTimeout
   }
-)
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, clientConfig)
+
+export const anonSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+  ...clientConfig,
+  auth: { ...clientConfig.auth, persistSession: false }
+})
